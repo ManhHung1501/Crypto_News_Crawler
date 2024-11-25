@@ -1,4 +1,4 @@
-import json
+import json, time, random
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -6,7 +6,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 def setup_driver():
@@ -16,6 +15,7 @@ def setup_driver():
     options.add_argument("--disable-gpu") 
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service)
     return driver
@@ -23,7 +23,8 @@ def setup_driver():
 # Function to wait for articles to load
 def wait_for_articles(driver):
     """Wait for the articles to load on the page."""
-    wait = WebDriverWait(driver, 10)
+    # wait = WebDriverWait(driver, 10)
+    wait = WebDriverWait(driver, 15, poll_frequency=1)
     wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "div.post-card-inline__content")))
 
 # Function to extract articles from the page
@@ -85,8 +86,8 @@ def extract_articles(driver, TARGET_DATE: str, max_retries: int = 5) -> list:
             retries = 0
         last_article_count = current_article_count
 
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
+        time.sleep(random.uniform(2, 5))
 
 # Function to save articles data to a JSON file
 def save_to_json(articles_data, filename="articles.json"):
