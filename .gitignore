@@ -4,5 +4,6 @@ __pycache__/
 
 venv/
 data/
+last_crawled/
 
 .env

@@ -1,6 +1,7 @@
 import os
 import hashlib
 import re
+import json
 from datetime import datetime, timedelta
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
@@ -42,25 +43,22 @@ def parse_cryptoslate_date(relative_time):
     relative_time = relative_time.lower()
 
     # Parse the input and adjust the date accordingly
-    if "minute" in relative_time:
+    if "minute" or "second" in relative_time:
         return now.strftime('%Y-%m-%d')
-    elif "hour" in relative_time:
-        hours = int(relative_time.split()[0])
-        return (now - timedelta(hours=hours)).strftime('%Y-%m-%d')
-    elif "day" in relative_time:
-        days = int(relative_time.split()[0])
-        return (now - timedelta(days=days)).strftime('%Y-%m-%d')
-    elif "week" in relative_time:
-        weeks = int(relative_time.split()[0])
-        return (now - timedelta(weeks=weeks)).strftime('%Y-%m-%d')
-    elif "month" in relative_time:
-        months = int(relative_time.split()[0])
-        return (now - timedelta(days=30 * months)).strftime('%Y-%m-%d')
-    elif "year" in relative_time:
-        years = int(relative_time.split()[0])
-        return (now.replace(year=now.year - years)).strftime('%Y-%m-%d')
     else:
-        raise ValueError("Unsupported time format")
+        value = int(relative_time.split()[0])
+        if "hour" in relative_time:
+            return (now - timedelta(hours=value)).strftime('%Y-%m-%d')
+        elif "day" in relative_time:
+            return (now - timedelta(days=value)).strftime('%Y-%m-%d')
+        elif "week" in relative_time:
+            return (now - timedelta(weeks=value)).strftime('%Y-%m-%d')
+        elif "month" in relative_time:
+            return (now - timedelta(days=30 * value)).strftime('%Y-%m-%d')
+        elif "year" in relative_time:
+            return (now.replace(year=now.year - value)).strftime('%Y-%m-%d')
+        else:
+            raise ValueError("Unsupported time format")
 
 def generate_url_hash(url):
     # Use MD5 to create a 128-bit hash
@@ -68,3 +66,30 @@ def generate_url_hash(url):
     # Convert the hash to a hexadecimal string
     url_hash = hash_object.hexdigest()
     return url_hash
+
+def get_full_crawl_checkpoint(file_p):
+    try:
+        file_path = os.path.join(project_dir, file_p)
+        with open(file_path, 'r') as f:
+            return json.load(f).get("last_crawled", [])
+    except FileNotFoundError:
+        return None
+
+def get_last_crawled(STATE_FILE):
+    try:
+        file_path = os.path.join(project_dir, STATE_FILE)
+        with open(file_path, 'r') as f:
+            return json.load(f).get("last_crawled", [])
+    except FileNotFoundError:
+        return []
+
+def save_last_crawled(new_urls, STATE_FILE):
+    save_path = os.path.join(project_dir, STATE_FILE)
+
+    # Ensure the directory exists
+    directory = os.path.dirname(save_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    with open(save_path, 'w') as f:
+        json.dump({"last_crawled": new_urls}, f)

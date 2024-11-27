@@ -1,13 +1,13 @@
 import time, random
+from datetime import date, datetime
 from selenium.webdriver.common.by import By
 from concurrent.futures import ThreadPoolExecutor
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from utils.minio_utils import upload_json_to_minio
-from utils.common_utils import parse_coindesk_date, generate_url_hash
+from utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_full_crawl_checkpoint
 from utils.chrome_driver_utils import setup_driver
 
 def handle_cookie_consent(driver):
@@ -28,12 +28,11 @@ def handle_cookie_consent(driver):
         print("No cookies prompt displayed.")
 
 # Function to extract articles from the page
-def extract_articles(driver, TARGET_DATE: str, max_retries: int = 5) -> list:
+def extract_articles(driver, last_crawled: list = [], max_records: int = None, max_retries: int = 5) -> list:
     """Extract articles from the page, return a list of articles data."""
     articles_data = []
     processed_urls = set()  # To avoid reprocessing the same article
     last_article_count = 0
-    retries = 0
 
     while True:
         # Get all the articles on the current page
@@ -46,20 +45,12 @@ def extract_articles(driver, TARGET_DATE: str, max_retries: int = 5) -> list:
                 article_url = title_element.get_attribute("href")
                 article_id = generate_url_hash(article_url)
                 # Skip if the article URL has already been processed
+                if article_id in last_crawled:
+                    return articles_data
                 if article_id in processed_urls:
                     continue
                 title = title_element.text
-            
-                # Extract published date
-                time_element = article.find_element(By.CSS_SELECTOR, "p.flex.gap-2.flex-col span")
-                published_at = parse_coindesk_date(time_element.text)
-
-                # Stop extraction if the article is older than the target date
-                if TARGET_DATE:
-                    if published_at < TARGET_DATE:
-                        print(f"No more articles to load after {TARGET_DATE}.")
-                        return articles_data  # No more articles to process
-
+    
                 # Extract content 
                 content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
                 content = content_element.text
@@ -68,14 +59,16 @@ def extract_articles(driver, TARGET_DATE: str, max_retries: int = 5) -> list:
                 articles_data.append({
                     "id": article_id,
                     "title": title,
-                    "published_at": published_at,
                     "content": content,
                     "url": article_url,
                     "source": "coindesk.com"
                 })
+                if max_records:
+                    if len(articles_data) == max_records:
+                        return articles_data
 
                 # Mark the URL as processed
-                processed_urls.add(article_url)
+                processed_urls.add(article_id)
 
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
@@ -103,8 +96,49 @@ def extract_articles(driver, TARGET_DATE: str, max_retries: int = 5) -> list:
 
     return articles_data
 
+# Get publish timestamp
+def get_publish_at(driver , articles):
+    for article in articles:
+        retries = 3
+        for attempt in range(retries):
+            try:
+                driver.get(article['url'])
+                header_div = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="article-header"]')
+                date_container = header_div.find_element(By.CSS_SELECTOR, "div.Noto_Sans_xs_Sans-400-xs")
+                date_elements = date_container.find_elements(By.CSS_SELECTOR, "span")
+                published_date_str = "1970-01-01 00:00:00"
+                for span in date_elements:
+                    date_text = span.text.strip().replace(" p.m.", " PM").replace(" a.m.", " AM")
+                    if "Published" in date_text:
+                        # Prioritize "Published" dates
+                        cleaned_date_text = date_text.replace("Published", "").strip()
+                        try:
+                            parsed_date = datetime.strptime(cleaned_date_text, "%b %d, %Y, %I:%M %p")
+                            published_date_str = parsed_date.strftime("%Y-%m-%d %H:%M:%S")
+                            break  # Stop further processing after finding "Published"
+                        except ValueError:
+                            print(f"Unable to parse Published date: {cleaned_date_text}")
+                    elif "Updated" not in date_text:  # Fallback for general date format
+                        try:
+                            parsed_date = datetime.strptime(date_text, "%b %d, %Y, %I:%M %p")
+                            published_date_str = parsed_date.strftime("%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            print(f"Unable to parse fallback date: {date_text}")
+
+                article['publish_at'] = published_date_str
+                break
+            except NoSuchElementException:
+                print(f"Retry to get publish date of {article['url']} attemp {attempt}")
+                if attempt < retries - 1:
+                    driver.refresh()
+            except Exception as e:
+                print(f"Error in get publish date of {article['url']}: {e}")
+                break
+            
+    return articles
+
 # Main function to orchestrate the crawling
-def crawl_articles_by_topic(topic: str, TARGET_DATE: str):
+def crawl_articles_by_topic(topic: str, max_records: int = None, type_crawl: str = 'incremental'):
     """function to set up the driver, crawl articles, and save them."""
     # URL to scrape
     URL = f"https://www.coindesk.com/{topic}"
@@ -117,31 +151,105 @@ def crawl_articles_by_topic(topic: str, TARGET_DATE: str):
     # Wait for the articles to load initially
     handle_cookie_consent(driver)
     
-    # Crawl articles by scrolling and extracting data
-    articles_data = extract_articles(driver, TARGET_DATE)
+    # Crawl articles
+    
+    STATE_FILE = f'last_crawled/coindesk/{topic}.json'
+    if type_crawl == 'incremental':
+        last_crawled = get_last_crawled(STATE_FILE=STATE_FILE)
+    elif type_crawl == 'full':
+        last_crawled = []
+    else:
+        raise Exception("Invalid type crawl")
+
+    articles_data = extract_articles(driver=driver, max_records=max_records, last_crawled=last_crawled)
+    articles_data = get_publish_at(driver, articles_data)
+
+    print(f"Success crawled {len(articles_data)} news of {topic}")
+    
+    # Save last crawled news
+    save_last_crawled([article['id'] for article in articles_data[:5]], STATE_FILE= STATE_FILE)
 
     # Close the driver after crawling
     driver.quit()
 
     # Check if there were any articles found after the target date
     if not articles_data:
-        print(f"No new articles found after {TARGET_DATE}.")
+        print(f"No new articles found.")
     else:
         # Save the extracted articles to a JSON file
-        object_key = f'web_crawler/coindesk/{topic}/coindesk_{topic}_news_after_{TARGET_DATE}.json'
+        object_key = f'web_crawler/coindesk/{topic}/coindesk_{topic}_{type_crawl}_crawled_at_{date.today()}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
-def multithreading_crawler(TARGET_DATE: str):
+def multithreading_crawler(max_records: int = None):
     topics = ['markets', 'business', 'policy', 'tech', 'opinion', 'consensus-magazine', 'learn']
     with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(crawl_articles_by_topic, topic, TARGET_DATE) for topic in topics]
+        futures = [executor.submit(crawl_articles_by_topic, topic, max_records) for topic in topics]
         for future in futures:
             try:
                 future.result()
             except Exception as e:
                 print(f"Error in thread of: {e}")
 
+def full_crawl_articles(driver):
+    checkpoint = get_full_crawl_checkpoint()
+    if checkpoint:
+        article_num = 0
+        while True:
+            # Get all the articles on the current page
+            articles = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")[article_num: article_num+ 10]
+            for article in articles:
+                try:
+                    # Extract title
+                    title_element = article.find_element(By.CSS_SELECTOR, "a.text-color-charcoal-900")
+                    article_url = title_element.get_attribute("href")
+                    article_id = generate_url_hash(article_url)
+                    # Skip if the article URL has already been processed
+                    if article_id in last_crawled:
+                        return articles_data
+                    if article_id in processed_urls:
+                        continue
+                    title = title_element.text
+        
+                    # Extract content 
+                    content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
+                    content = content_element.text
+        
+                    # Add the article data to the list
+                    articles_data.append({
+                        "id": article_id,
+                        "title": title,
+                        "content": content,
+                        "url": article_url,
+                        "source": "coindesk.com"
+                    })
+                    if max_records:
+                        if len(articles_data) == max_records:
+                            return articles_data
+
+                except Exception as e:
+                    print(f"Error extracting data for an article: {e}")
+
+            current_article_count = len(articles)
+            if current_article_count == last_article_count:
+                retries += 1
+                if retries >= max_retries:
+                    print("No more articles to load after multiple retries.")
+                    return articles_data
+            else:
+                retries = 0
+            last_article_count = current_article_count
+
+            # Click the "More stories" button to load more articles
+            try:
+                more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
+                ActionChains(driver).move_to_element(more_button).click().perform()
+                print("Clicked on 'More stories' button.")
+            except Exception as e:
+                print("No 'More stories' button found or could not click: ", e)
+                break  
+            # Wait for new articles to load
+            time.sleep(random.uniform(2, 4))
+
 # Run the crawling process
 if __name__ == "__main__":
-    TARGET_DATE = "2024-11-20"
-    multithreading_crawler(TARGET_DATE)
+    multithreading_crawler()
