@@ -5,7 +5,8 @@ import json
 from datetime import datetime, timedelta
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
-
+from minio_utils import connect_minio
+from config.storage_config import CRYPTO_NEWS_BUCKET
 
 def get_project_path():
     current_path = os.path.abspath(__file__)
@@ -13,52 +14,6 @@ def get_project_path():
     return os.path.dirname(current_directory)
 project_dir = get_project_path()
 
-def parse_coindesk_date(date_str):
-    # Check for relative date like '18 HRS AGO', '53 MINS AGO'
-    if 'AGO' in date_str.upper():
-        match = re.match(r'(\d+)\s*(HRS|MINS)\s*AGO', date_str.upper())
-        if match:
-            value = int(match.group(1))
-            unit = match.group(2)
-            
-            now = datetime.now()
-
-            if unit == 'HRS':
-                return (now - relativedelta(hours=value)).strftime('%Y-%m-%d')
-            elif unit == 'MINS':
-                return (now - relativedelta(minutes=value)).strftime('%Y-%m-%d')
-    
-    # If it's not a relative date, attempt to parse it as a full date
-    try:
-        parsed_date = parser.parse(date_str)
-        return parsed_date.strftime('%Y-%m-%d')
-    except ValueError:
-        return None
-
-def parse_cryptoslate_date(relative_time):
-    # Get the current date and time
-    now = datetime.now()
-
-    # Normalize the input to lowercase for easier matching
-    relative_time = relative_time.lower()
-
-    # Parse the input and adjust the date accordingly
-    if "minute" or "second" in relative_time:
-        return now.strftime('%Y-%m-%d')
-    else:
-        value = int(relative_time.split()[0])
-        if "hour" in relative_time:
-            return (now - timedelta(hours=value)).strftime('%Y-%m-%d')
-        elif "day" in relative_time:
-            return (now - timedelta(days=value)).strftime('%Y-%m-%d')
-        elif "week" in relative_time:
-            return (now - timedelta(weeks=value)).strftime('%Y-%m-%d')
-        elif "month" in relative_time:
-            return (now - timedelta(days=30 * value)).strftime('%Y-%m-%d')
-        elif "year" in relative_time:
-            return (now.replace(year=now.year - value)).strftime('%Y-%m-%d')
-        else:
-            raise ValueError("Unsupported time format")
 
 def generate_url_hash(url):
     # Use MD5 to create a 128-bit hash
@@ -67,13 +22,40 @@ def generate_url_hash(url):
     url_hash = hash_object.hexdigest()
     return url_hash
 
-def get_full_crawl_checkpoint(file_p):
+def get_last_initial_crawled(prefix):
     try:
-        file_path = os.path.join(project_dir, file_p)
-        with open(file_path, 'r') as f:
-            return json.load(f).get("last_crawled", [])
-    except FileNotFoundError:
-        return None
+        minio_client = connect_minio()  # Connect to your MinIO instance
+        
+        # List objects with the given prefix
+        objects = minio_client.list_objects_v2(Bucket=CRYPTO_NEWS_BUCKET, Prefix=prefix)
+        files = []
+
+        for obj in objects.get('Contents', []):
+            key = obj['Key']
+            # Match files with the dynamic prefix and extract the batch number
+            match = re.search(rf'{prefix}(\d+)', key)
+            if match:
+                files.append((key, int(match.group(1))))
+        
+        if not files:
+            print("No matching files found.")
+            return None, 100
+
+        # Find the latest file based on the batch number
+        latest_file = max(files, key=lambda x: x[1])[0]
+
+        # Retrieve the content of the latest file
+        response = minio_client.get_object(Bucket=CRYPTO_NEWS_BUCKET, Key=latest_file)
+        file_content = response['Body'].read().decode('utf-8')
+        
+        # Parse the JSON content
+        data = json.loads(file_content)
+        return data[-1]['id'], files[-1][1]  # Return last ID and latest batch number
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return None, 100
+
 
 def get_last_crawled(STATE_FILE):
     try:

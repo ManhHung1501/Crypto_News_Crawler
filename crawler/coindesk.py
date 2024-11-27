@@ -7,8 +7,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from utils.minio_utils import upload_json_to_minio
-from utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_full_crawl_checkpoint
+from utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
 from utils.chrome_driver_utils import setup_driver
+
+topics = ['markets', 'business', 'policy', 'tech', 'opinion', 'consensus-magazine', 'learn']
 
 def handle_cookie_consent(driver):
     """
@@ -181,7 +183,7 @@ def crawl_articles_by_topic(topic: str, max_records: int = None, type_crawl: str
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
 def multithreading_crawler(max_records: int = None):
-    topics = ['markets', 'business', 'policy', 'tech', 'opinion', 'consensus-magazine', 'learn']
+    
     with ThreadPoolExecutor(max_workers=4) as executor:
         futures = [executor.submit(crawl_articles_by_topic, topic, max_records) for topic in topics]
         for future in futures:
@@ -190,65 +192,81 @@ def multithreading_crawler(max_records: int = None):
             except Exception as e:
                 print(f"Error in thread of: {e}")
 
-def full_crawl_articles(driver):
-    checkpoint = get_full_crawl_checkpoint()
-    if checkpoint:
-        article_num = 0
-        while True:
-            # Get all the articles on the current page
-            articles = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")[article_num: article_num+ 10]
-            for article in articles:
+def full_crawl_articles():
+    driver = setup_driver()
+    batch_size = 100
+    for topic in topics:
+        prefix = f'web_crawler/coindesk/{topic}/coindesk_{topic}_initial_batch_'
+        last_crawled_id, current_batch = get_last_initial_crawled(prefix=prefix)
+        URL = f"https://www.coindesk.com/{topic}"
+        # Set up the WebDriver
+    
+        # Open the URL
+        driver.get(URL)
+
+        # Wait for the articles to load initially
+        handle_cookie_consent(driver)
+
+        if last_crawled_id:
+            not_crawled = False
+            article_num = 0
+            articles_data = []
+            while True:
+                # Get all the articles on the current page
+                articles = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")[article_num: article_num+ 10]
+                for article in articles:
+                    try:
+                        # Extract title
+                        title_element = article.find_element(By.CSS_SELECTOR, "a.text-color-charcoal-900")
+                        article_url = title_element.get_attribute("href")
+                        article_id = generate_url_hash(article_url)
+                        # Skip if the article URL has already been processed
+                        if article_id == last_crawled_id:
+                            not_crawled = True
+                            continue
+                        if not_crawled:
+                            title = title_element.text
+                
+                            # Extract content 
+                            content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
+                            content = content_element.text
+                
+                            # Add the article data to the list
+                            articles_data.append({
+                                "id": article_id,
+                                "title": title,
+                                "content": content,
+                                "url": article_url,
+                                "source": "coindesk.com"
+                            })
+                        
+                        if len(articles_data) == batch_size:
+                            articles_data = get_publish_at(driver=driver,articles=articles_data)
+                            new_batch = current_batch + batch_size
+                            object_key = f'{prefix}{new_batch}.json'
+                            upload_json_to_minio(json_data=articles_data,object_key=object_key)
+                            
+                            current_batch = new_batch
+                            last_crawled_id = articles_data[-1]['id']
+                            articles_data = []
+                    except Exception as e:
+                        print(f"Error extracting data for an article: {e}")
+                    
+
+                # Click the "More stories" button to load more articles
                 try:
-                    # Extract title
-                    title_element = article.find_element(By.CSS_SELECTOR, "a.text-color-charcoal-900")
-                    article_url = title_element.get_attribute("href")
-                    article_id = generate_url_hash(article_url)
-                    # Skip if the article URL has already been processed
-                    if article_id in last_crawled:
-                        return articles_data
-                    if article_id in processed_urls:
-                        continue
-                    title = title_element.text
-        
-                    # Extract content 
-                    content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
-                    content = content_element.text
-        
-                    # Add the article data to the list
-                    articles_data.append({
-                        "id": article_id,
-                        "title": title,
-                        "content": content,
-                        "url": article_url,
-                        "source": "coindesk.com"
-                    })
-                    if max_records:
-                        if len(articles_data) == max_records:
-                            return articles_data
-
+                    more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
+                    ActionChains(driver).move_to_element(more_button).click().perform()
+                    article_num += 10
+                    print("Clicked on 'More stories' button.")
+                except NoSuchElementException as e:
+                    print("No 'More stories' button found or could not click")
+                    break
                 except Exception as e:
-                    print(f"Error extracting data for an article: {e}")
-
-            current_article_count = len(articles)
-            if current_article_count == last_article_count:
-                retries += 1
-                if retries >= max_retries:
-                    print("No more articles to load after multiple retries.")
-                    return articles_data
-            else:
-                retries = 0
-            last_article_count = current_article_count
-
-            # Click the "More stories" button to load more articles
-            try:
-                more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
-                ActionChains(driver).move_to_element(more_button).click().perform()
-                print("Clicked on 'More stories' button.")
-            except Exception as e:
-                print("No 'More stories' button found or could not click: ", e)
-                break  
-            # Wait for new articles to load
-            time.sleep(random.uniform(2, 4))
+                    print("Error in click more: ", e)
+                      
+                # Wait for new articles to load
+                time.sleep(random.uniform(2, 4))
 
 # Run the crawling process
 if __name__ == "__main__":
