@@ -5,8 +5,6 @@ import json
 from datetime import datetime, timedelta
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
-from minio_utils import connect_minio
-from config.storage_config import CRYPTO_NEWS_BUCKET
 
 def get_project_path():
     current_path = os.path.abspath(__file__)
@@ -22,16 +20,14 @@ def generate_url_hash(url):
     url_hash = hash_object.hexdigest()
     return url_hash
 
-def get_last_initial_crawled(prefix):
+def get_last_initial_crawled(minio_client, bucket, prefix):
     try:
-        minio_client = connect_minio()  # Connect to your MinIO instance
-        
         # List objects with the given prefix
-        objects = minio_client.list_objects_v2(Bucket=CRYPTO_NEWS_BUCKET, Prefix=prefix)
+        objects = minio_client.list_objects(bucket, prefix=prefix)
         files = []
 
-        for obj in objects.get('Contents', []):
-            key = obj['Key']
+        for obj in objects:
+            key = obj.object_name
             # Match files with the dynamic prefix and extract the batch number
             match = re.search(rf'{prefix}(\d+)', key)
             if match:
@@ -39,31 +35,64 @@ def get_last_initial_crawled(prefix):
         
         if not files:
             print("No matching files found.")
-            return None, 100
+            last_id = None
+            last_batch = 0
 
         # Find the latest file based on the batch number
         latest_file = max(files, key=lambda x: x[1])[0]
 
         # Retrieve the content of the latest file
-        response = minio_client.get_object(Bucket=CRYPTO_NEWS_BUCKET, Key=latest_file)
-        file_content = response['Body'].read().decode('utf-8')
+        response = minio_client.get_object(bucket, latest_file)
+        file_content = response.read().decode('utf-8')
         
         # Parse the JSON content
         data = json.loads(file_content)
-        return data[-1]['id'], files[-1][1]  # Return last ID and latest batch number
-
+        last_id = data[-1]['id']
+        last_batch = files[-1][1]
+        
     except Exception as e:
-        print(f"Error: {e}")
-        return None, 100
+        print(f"Error in get last initial crawled: {e}")
+        last_id = None
+        last_batch = 0
+    
+    print(f'Last ID: {last_id}, Last Batch: {last_batch}')
+    return last_id, last_batch
 
 
-def get_last_crawled(STATE_FILE):
+def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
     try:
         file_path = os.path.join(project_dir, STATE_FILE)
         with open(file_path, 'r') as f:
             return json.load(f).get("last_crawled", [])
     except FileNotFoundError:
-        return []
+        # List objects with the given prefix
+        objects = minio_client.list_objects(bucket, prefix=prefix)
+        files = []
+
+        for obj in objects:
+            key = obj.object_name
+            # Match files with the dynamic prefix and extract the batch number
+            match = re.search(rf'{prefix}(\d+)', key)
+            if match:
+                files.append((key, int(match.group(1))))
+        
+        if not files:
+            last_crawled =  []
+
+        # Find the latest file based on the batch number
+        latest_file = min(files, key=lambda x: x[1])[0]
+
+        # Retrieve the content of the latest file
+        response = minio_client.get_object(bucket, latest_file)
+        file_content = response.read().decode('utf-8')
+        
+        # Parse the JSON content
+        data = json.loads(file_content)[:5] 
+
+        last_crawled =  [artc['id'] for artc in data]
+
+        print(f'Get last crawl fom initial crawled: {last_crawled}')
+        return last_crawled
 
 def save_last_crawled(new_urls, STATE_FILE):
     save_path = os.path.join(project_dir, STATE_FILE)

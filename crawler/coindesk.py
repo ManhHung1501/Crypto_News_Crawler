@@ -6,9 +6,10 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
-from utils.minio_utils import upload_json_to_minio
+from utils.minio_utils import upload_json_to_minio, connect_minio
 from utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
 from utils.chrome_driver_utils import setup_driver
+from config.storage_config import CRYPTO_NEWS_BUCKET
 
 topics = ['markets', 'business', 'policy', 'tech', 'opinion', 'consensus-magazine', 'learn']
 
@@ -195,9 +196,11 @@ def multithreading_crawler(max_records: int = None):
 def full_crawl_articles():
     driver = setup_driver()
     batch_size = 100
+    minio_client = connect_minio()
+
     for topic in topics:
         prefix = f'web_crawler/coindesk/{topic}/coindesk_{topic}_initial_batch_'
-        last_crawled_id, current_batch = get_last_initial_crawled(prefix=prefix)
+        last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
         URL = f"https://www.coindesk.com/{topic}"
         # Set up the WebDriver
     
@@ -209,64 +212,73 @@ def full_crawl_articles():
 
         if last_crawled_id:
             not_crawled = False
-            article_num = 0
-            articles_data = []
-            while True:
-                # Get all the articles on the current page
-                articles = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")[article_num: article_num+ 10]
-                for article in articles:
-                    try:
-                        # Extract title
-                        title_element = article.find_element(By.CSS_SELECTOR, "a.text-color-charcoal-900")
-                        article_url = title_element.get_attribute("href")
-                        article_id = generate_url_hash(article_url)
-                        # Skip if the article URL has already been processed
-                        if article_id == last_crawled_id:
-                            not_crawled = True
-                            continue
-                        if not_crawled:
-                            title = title_element.text
-                
-                            # Extract content 
-                            content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
-                            content = content_element.text
-                
-                            # Add the article data to the list
-                            articles_data.append({
-                                "id": article_id,
-                                "title": title,
-                                "content": content,
-                                "url": article_url,
-                                "source": "coindesk.com"
-                            })
-                        
-                        if len(articles_data) == batch_size:
-                            articles_data = get_publish_at(driver=driver,articles=articles_data)
-                            new_batch = current_batch + batch_size
-                            object_key = f'{prefix}{new_batch}.json'
-                            upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                            
-                            current_batch = new_batch
-                            last_crawled_id = articles_data[-1]['id']
-                            articles_data = []
-                    except Exception as e:
-                        print(f"Error extracting data for an article: {e}")
-                    
-
-                # Click the "More stories" button to load more articles
+        else:
+            not_crawled = True
+        article_num = 0
+        articles_data = []
+        page_size = 10
+        retries = 3
+        retries_count =1 
+        while True:
+            # Get all the articles on the current page
+            data_div = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
+            articles = data_div[article_num: article_num+ page_size]
+            for article in articles:
                 try:
-                    more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
-                    ActionChains(driver).move_to_element(more_button).click().perform()
-                    article_num += 10
-                    print("Clicked on 'More stories' button.")
-                except NoSuchElementException as e:
-                    print("No 'More stories' button found or could not click")
-                    break
+                    # Extract title
+                    title_element = article.find_element(By.CSS_SELECTOR, "a.text-color-charcoal-900")
+                    article_url = title_element.get_attribute("href")
+                    article_id = generate_url_hash(article_url)
+                    # Skip if the article URL has already been processed
+                    if not not_crawled and article_id == last_crawled_id:
+                        not_crawled = True
+                        continue
+                    if not_crawled:
+                        title = title_element.text
+            
+                        # Extract content 
+                        content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
+                        content = content_element.text
+            
+                        # Add the article data to the list
+                        articles_data.append({
+                            "id": article_id,
+                            "title": title,
+                            "content": content,
+                            "url": article_url,
+                            "source": "coindesk.com"
+                        })
+                    
+                    if len(articles_data) == batch_size:
+                        articles_data = get_publish_at(driver=driver,articles=articles_data)
+                        new_batch = current_batch + batch_size
+                        object_key = f'{prefix}{new_batch}.json'
+                        upload_json_to_minio(json_data=articles_data,object_key=object_key)
+                        
+                        current_batch = new_batch
+                        articles_data = []
                 except Exception as e:
-                    print("Error in click more: ", e)
-                      
-                # Wait for new articles to load
-                time.sleep(random.uniform(2, 4))
+                    print(f"Error extracting data for an article: {e}")
+                
+
+            # Click the "More stories" button to load more articles
+            try:
+                more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
+                ActionChains(driver).move_to_element(more_button).click().perform()
+                article_num += page_size
+                retries_count = 0
+                print(f"Complete crawl news of {topic} from {article_num} to {len(data_div)}")
+            except NoSuchElementException as e:
+                print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
+                retries_count +=1
+                if retries_count > retries:
+                    break
+            except Exception as e:
+                print("Error in click more: ", e)
+                break
+                    
+            # Wait for new articles to load
+            time.sleep(random.uniform(2, 4))
 
 # Run the crawling process
 if __name__ == "__main__":

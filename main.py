@@ -2,6 +2,6 @@
 from crawler import cointelegraph,coindesk
 
 
-cointelegraph.multithreading_crawler(20)
+cointelegraph.full_crawl_articles()
 
 

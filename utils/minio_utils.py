@@ -33,13 +33,13 @@ def upload_json_to_minio(json_data, object_key: str, bucket_name: str = CRYPTO_N
         if not minio_client.bucket_exists(bucket_name):
             minio_client.make_bucket(bucket_name)
             print(f"Created bucket: {bucket_name}")
-        
+        json_bytes.seek(0)
         # Upload the JSON string as an object
         minio_client.put_object(
             bucket_name,
             object_key,
             data=json_bytes,
-            length=len(json_string),
+            length=json_bytes.getbuffer().nbytes,
             content_type="application/json"
         )
         print(f"Uploaded JSON data to {bucket_name}/{object_key}")
