@@ -24,12 +24,16 @@ def setup_driver():
     options.add_argument("--disable-infobars")
     options.add_argument("--disable-extensions")
     options.add_argument("window-size=1200x600")
-    
+
     driver_path = ChromeDriverManager().install()
-    if not os.access(driver_path, os.X_OK):  # Check if it's executable
-        raise RuntimeError(f"The driver at {driver_path} is not executable.")
     
-    service = Service(driver_path)
+    binary_path = os.path.join(os.path.dirname(driver_path), "chromedriver")
+    if not os.path.isfile(binary_path):
+        raise FileNotFoundError(f"ChromeDriver binary not found at: {binary_path}")
+    if not os.access(binary_path, os.X_OK):
+        raise PermissionError(f"ChromeDriver binary is not executable: {binary_path}")
+    
+    service = Service(binary_path)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
