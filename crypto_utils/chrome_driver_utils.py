@@ -6,7 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
-import shutil
+import os
 
 def setup_driver():
     """Set up the Chrome WebDriver with the appropriate service."""
@@ -25,16 +25,10 @@ def setup_driver():
     options.add_argument("--disable-extensions")
     options.add_argument("window-size=1200x600")
     
-    try:
-        # Automatically detect and install the appropriate driver
-        driver_path = ChromeDriverManager().install()
-        # Confirm driver is executable
-        if not shutil.which(driver_path):
-            raise FileNotFoundError(f"Driver not found or not executable at: {driver_path}")
-    except Exception as e:
-        raise RuntimeError("Error setting up ChromeDriver.") from e
-
-    # Initialize the driver
+    driver_path = ChromeDriverManager().install()
+    if not os.access(driver_path, os.X_OK):  # Check if it's executable
+        raise RuntimeError(f"The driver at {driver_path} is not executable.")
+    
     service = Service(driver_path)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
