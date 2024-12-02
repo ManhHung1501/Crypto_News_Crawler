@@ -1,6 +1,7 @@
 import time, random
 from datetime import date
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
 from concurrent.futures import ThreadPoolExecutor
 from utils.minio_utils import upload_json_to_minio, connect_minio
 from utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
@@ -140,8 +141,11 @@ def full_crawl_articles():
 
         # Wait for the articles to load initially
         wait_for_page_load(driver,"div.tag-page")
-        accept_cookies = driver.find_element(By.XPATH, '//button[@class="btn privacy-policy__accept-btn"]')
-        accept_cookies.click()
+        try:
+            accept_cookies = driver.find_element(By.XPATH, '//button[@class="btn privacy-policy__accept-btn"]')
+            accept_cookies.click()
+        except NoSuchElementException:
+            print("No Accept cookies to click")
 
         if last_crawled_id:
             not_crawled = False
@@ -200,6 +204,8 @@ def full_crawl_articles():
                 print(f"Get Error in load more news retries {retries_count}/{retries}")
                 retries_count+=1
                 if retries_count > retries:
+                    object_key = f'{prefix}{len(data_div)}.json'
+                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
                     break
             # Wait for new articles to load
             time.sleep(random.uniform(2, 4))

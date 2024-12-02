@@ -1,23 +1,32 @@
-import time
+import time, random, requests
 from datetime import datetime, date
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException
-from utils.minio_utils import upload_json_to_minio
-from utils.common_utils import generate_url_hash, get_last_crawled,save_last_crawled
+from utils.minio_utils import upload_json_to_minio, connect_minio
+from utils.common_utils import generate_url_hash, get_last_crawled,save_last_crawled, get_last_initial_crawled
 from utils.chrome_driver_utils import setup_driver, wait_for_page_load
-
+from config.storage_config import CRYPTO_NEWS_BUCKET
+from bs4 import BeautifulSoup
 
 # Get total page
-def get_total_page(driver):
+def get_total_page():
     try:
-        driver.get(f"https://cryptoslate.com/news")
-        time.sleep(3)
-        # Locate the element containing the total pages (hidden link with the highest number)
-        last_page_element = driver.find_element(By.CSS_SELECTOR, 'div.pagination a.page-numbers[style="display: none;"]')
-        href_value = last_page_element.get_attribute("href")
-        # Extract and return the total pages as an integer
-        total_pages = int(href_value.split('/')[-2].replace(',', ''))
+        # Fetch the webpage content
+        URL = "https://cryptoslate.com/news"
+        response = requests.get(URL, timeout=10)
+        response.raise_for_status()
+
+        # Parse the HTML content
+        soup = BeautifulSoup(response.text, 'html.parser')
+        # Find the pagination element with the highest number
+        last_page_element = soup.select('div.pagination a.page-numbers')[-2]
+        if not last_page_element:
+            return None
+
+
+        total_pages = int(last_page_element.get_text().replace(',', ''))
+        print('Total pages:', total_pages)
         return total_pages
+
     except Exception as e:
         print(f"Error while finding total pages: {e}")
         return None
@@ -27,90 +36,90 @@ def extract_articles(driver, last_crawled: list = [], max_records: int = None) -
     """Extract articles from the page, return a list of articles data."""
     articles_data = []
     # Open the URL
-    total_page = get_total_page(driver)
+    total_page = get_total_page()
+    page = 1
     if total_page == None:
         return articles_data
-    for i in range(total_page):
-        page = i + 1
-        URL = f"https://cryptoslate.com/news/page/{page}/"
-        driver.get(URL)
-        wait_for_page_load(driver, 'section.news-feed')
+    while page <= total_page:
+        try:
+            URL = f"https://cryptoslate.com/news/page/{page}/"
+            driver.get(URL)
+            wait_for_page_load(driver, 'section.news-feed')
 
-        # Get all the articles on the current page
-        news_feed = driver.find_element(By.CSS_SELECTOR, 'section.news-feed')
-        articles = news_feed.find_elements(By.CSS_SELECTOR, "div.list-post")
-        for article in articles:
-            try:
-                # Extract title
-                title = article.find_element(By.CSS_SELECTOR, "div.title h2").text
-                article_url = article.find_element(By.CSS_SELECTOR, "a").get_attribute("href")
-                article_id = generate_url_hash(article_url)
-                
-                # check for new article
-                if article_id in last_crawled:
-                    return articles_data
-
-                estimate_time = article.find_element(By.CSS_SELECTOR, "div.post-meta span:nth-child(2)").text
-                # Extract content
-                content = article.find_element(By.CSS_SELECTOR, "div.excerpt p").text
-                
-                # Add the article data to the list
-                articles_data.append({
-                    "id": article_url,
-                    "title": title,
-                    "published_at": estimate_time,
-                    "content": content,
-                    "url": article_url,
-                    "source": "cryptoslate.com"
-                })
-
-                if max_records:
-                    if len(articles_data) == max_records:
-                        return articles_data
+            # Get all the articles on the current page
+            news_feed = driver.find_element(By.CSS_SELECTOR, 'section.news-feed')
+            articles = news_feed.find_elements(By.CSS_SELECTOR, "div.list-post")
+            for article in articles:
+                try:
+                    # Extract title
+                    title = article.find_element(By.CSS_SELECTOR, "div.title h2").text
+                    article_url = article.find_element(By.CSS_SELECTOR, "a").get_attribute("href")
+                    article_id = generate_url_hash(article_url)
                     
-            except Exception as e:
-                print(f"Error extracting data for an article: {e}")
+                    # check for new article
+                    if article_id in last_crawled:
+                        return articles_data
+
+                    estimate_time = article.find_element(By.CSS_SELECTOR, "div.post-meta span:nth-child(2)").text
+                    # Extract content
+                    content = article.find_element(By.CSS_SELECTOR, "div.excerpt p").text
+                    
+                    # Add the article data to the list
+                    articles_data.append({
+                        "id": article_id,
+                        "title": title,
+                        "published_at": estimate_time,
+                        "content": content,
+                        "url": article_url,
+                        "source": "cryptoslate.com"
+                    })
+
+                    if max_records:
+                        if len(articles_data) == max_records:
+                            return articles_data
+                        
+                except Exception as e:
+                    print(f"Error extracting data for {article_url}: {e}")
+            page += 1
+        except Exception as e:
+            print(f"Error on GET data on page {page}: {e}")
         
     return articles_data
 
-def get_publish_at(driver, articles):
+def get_publish_at(articles):
     for article in articles:
-        retries = 3
         published_at = "1970-01-01 00:00:00"
         url = article['url']
-        for attempt in range(retries):
-            # Navigate to article URL
-            driver.get(url)
-            try:
-                post_header_div = driver.find_element(By.CSS_SELECTOR, "div.post-header.article")
-            except NoSuchElementException :
-                print(f"Retry to get publish date of {url} (Attempt {attempt + 1}/{retries})")
-                if attempt < retries - 1:
-                    driver.refresh()
-                    time.sleep(2)
-                continue
-
-            try:   
-                published_element = post_header_div.find_element(By.CSS_SELECTOR, ".post-meta-single.sponsored .text span")
-                raw_date = published_element.text.replace("Published", "").strip()
-                published_at = datetime.strptime(raw_date, "%b. %d, %Y at %I:%M %p UTC").strftime("%Y-%m-%d %H:%M:%S")
-            except NoSuchElementException:
+        try:
+            response = requests.get(url, timeout=10)
+            soup = BeautifulSoup(response.content, "html.parser")
+            published_element = soup.select_one(".post-meta-single.sponsored .text span")
+            post_header_div = soup.select_one(".post-header.article")
+            author_element = soup.select_one(".author-info")
+            if author_element:
+                post_date_element = author_element.select_one(".post-date")
+                time_element = author_element.select_one(".time")
+                raw_date = post_date_element.get_text(strip=True).replace(time_element.get_text(), "") + " " + time_element.get_text(strip=True).replace("at ", "")
+                published_at = datetime.strptime(raw_date, "%b. %d, %Y %I:%M %p UTC").strftime("%Y-%m-%d %H:%M:%S")
+            else:
                 try:
-                    post_date_element = driver.find_element(By.CSS_SELECTOR, ".author-info .post-date")
-                    time_element = post_date_element.find_element(By.CSS_SELECTOR, ".time")
-                    raw_date = post_date_element.text.replace(time_element.text, "").strip() + " " + time_element.text.replace("at ", "").strip()
-                    published_at = datetime.strptime(raw_date, "%b. %d, %Y %I:%M %p UTC").strftime("%Y-%m-%d %H:%M:%S")
-                except NoSuchElementException:
+                    published_element = post_header_div.select_one(".post-meta-single.sponsored .text span")
+                    raw_date = published_element.get_text(strip=True).replace("Published", "").strip()
+                    published_at = datetime.strptime(raw_date, "%b. %d, %Y at %I:%M %p UTC").strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e:
+                    print('Error in get publish date: ', e)
                     pass
+        except Exception as e: 
+            print('Error in get publish date: ', e)
+            
+        if published_at == "1970-01-01 00:00:00":
+            print(f'Failed to get publish date for {url}')
 
-            if published_at == "1970-01-01 00:00:00":
-                print(f"Failed to get publish date of {url}")
-            article['published_at'] = published_at
-        
+        article['published_at'] = published_at
     return articles
 
 # Main function to orchestrate the crawling
-def crawl_articles(max_records: int = None, type_crawl: str = 'incremental'):
+def crawl_articles(max_records: int = None):
     """function to set up the driver, crawl articles, and save them."""
     # URL to scrape
     
@@ -119,15 +128,13 @@ def crawl_articles(max_records: int = None, type_crawl: str = 'incremental'):
     # Crawl articles
     
     STATE_FILE = f'last_crawled/cryptoslate/last_crawled_id.json'
-    if type_crawl == 'incremental':
-        last_crawled = get_last_crawled(STATE_FILE=STATE_FILE)
-    elif type_crawl == 'full':
-        last_crawled = []
-    else:
-        raise Exception("Invalid type crawl")
+    minio_client = connect_minio()
+    prefix = f'web_crawler/cryptoslate/cryptoslate_initial_batch_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    
 
     articles_data = extract_articles(driver=driver, max_records=max_records, last_crawled=last_crawled)
-    articles_data = get_publish_at(driver, articles_data)
+    articles_data = get_publish_at(articles_data)
 
     print(f"Success crawled {len(articles_data)} news")
     
@@ -142,8 +149,91 @@ def crawl_articles(max_records: int = None, type_crawl: str = 'incremental'):
         print(f"No new articles found.")
     else:
         # Save the extracted articles to a JSON file
-        object_key = f'web_crawler/cryptoslate/cryptoslate_{type_crawl}_crawled_at_{date.today()}.json'
+        object_key = f'web_crawler/cryptoslate/cryptoslate_incremental_crawled_at_{date.today()}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
+
+def full_crawl_articles():
+    batch_size = 100
+    minio_client = connect_minio()
+    
+    prefix = f'web_crawler/cryptoslate/cryptoslate_initial_batch_'
+    last_crawled_id, current_batch = get_last_initial_crawled(
+        minio_client=minio_client, 
+        bucket=CRYPTO_NEWS_BUCKET,
+        prefix=prefix
+    )
+    
+    not_crawled = last_crawled_id is None
+    articles_data = []
+    page = 1
+    total_page = get_total_page() 
+
+    while page <= total_page:
+        print(f'Crawling news on page {page}')
+        URL = f"https://cryptoslate.com/news/page/{page}/"
+        
+        try:
+            # Fetch the HTML content
+            response = requests.get(URL, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Select the news-feed section and articles
+            news_feed = soup.select_one('section.news-feed')
+            articles = news_feed.select("div.list-post") if news_feed else []
+
+            for article in articles:
+                try:
+                    # Extract article title
+                    title_element = article.select_one("div.title h2")
+                    title = title_element.text.strip() if title_element else None
+
+                    # Extract article URL
+                    link_element = article.select_one("a")
+                    article_url = link_element['href'] if link_element else None
+                    article_id = generate_url_hash(article_url)
+
+                    # Skip already crawled articles
+                    if not not_crawled and article_id == last_crawled_id:
+                        not_crawled = True
+                        continue
+                    if not_crawled:
+                        # Extract content
+                        content_element = article.select_one("div.excerpt p")
+                        content = content_element.text.strip() if content_element else None
+                        
+                        # Add the article data to the list
+                        articles_data.append({
+                            "id": article_id,
+                            "title": title,
+                            "content": content,
+                            "url": article_url,
+                            "source": "cryptoslate.com"
+                        })
+                    
+                    # Process and upload the batch
+                    if len(articles_data) == batch_size:
+                        articles_data = get_publish_at(articles=articles_data)  # Adjust to parse publish dates
+                        new_batch = current_batch + batch_size
+                        object_key = f'{prefix}{new_batch}.json'
+                        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                        
+                        current_batch = new_batch
+                        articles_data = []
+                except Exception as e:
+                    print(f"Error extracting data for {article_url}: {e}")
+            print(f"Total News Crawled After page {page} is {len(articles_data)}")
+            page += 1 
+        except requests.RequestException as e:
+            print(f"Error fetching page {page}: {e}")
+
+    # Final upload if there are remaining articles
+    if articles_data:
+        articles_data = get_publish_at(articles=articles_data)
+        new_batch = current_batch + batch_size
+        object_key = f'{prefix}{new_batch}.json'
+        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+        print(f"Uploaded final batch: {object_key}")
 
 # Run the crawling process
 if __name__ == "__main__":

@@ -58,6 +58,16 @@ def get_last_initial_crawled(minio_client, bucket, prefix):
     print(f'Last ID: {last_id}, Last Batch: {last_batch}')
     return last_id, last_batch
 
+def save_last_crawled(new_urls, STATE_FILE):
+    save_path = os.path.join(project_dir, STATE_FILE)
+
+    # Ensure the directory exists
+    directory = os.path.dirname(save_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    with open(save_path, 'w') as f:
+        json.dump({"last_crawled": new_urls}, f)
 
 def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
     try:
@@ -90,17 +100,6 @@ def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
         data = json.loads(file_content)[:5] 
 
         last_crawled =  [artc['id'] for artc in data]
-
+        save_last_crawled(last_crawled, file_path)
         print(f'Get last crawl fom initial crawled: {last_crawled}')
         return last_crawled
-
-def save_last_crawled(new_urls, STATE_FILE):
-    save_path = os.path.join(project_dir, STATE_FILE)
-
-    # Ensure the directory exists
-    directory = os.path.dirname(save_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    with open(save_path, 'w') as f:
-        json.dump({"last_crawled": new_urls}, f)

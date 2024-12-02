@@ -1,4 +1,5 @@
-import time, random
+import time, random, requests
+from bs4 import BeautifulSoup
 from datetime import date, datetime
 from selenium.webdriver.common.by import By
 from concurrent.futures import ThreadPoolExecutor
@@ -102,46 +103,43 @@ def extract_articles(driver, last_crawled: list = [], max_records: int = None, m
 # Get publish timestamp
 def get_publish_at(driver , articles):
     for article in articles:
-        retries = 3
-        for attempt in range(retries):
-            try:
-                driver.get(article['url'])
-                header_div = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="article-header"]')
-                date_container = header_div.find_element(By.CSS_SELECTOR, "div.Noto_Sans_xs_Sans-400-xs")
-                date_elements = date_container.find_elements(By.CSS_SELECTOR, "span")
-                published_date_str = "1970-01-01 00:00:00"
+        url = article['url']
+        published_at = "1970-01-01 00:00:00"
+        try:
+            # Make the HTTP request
+            response = requests.get(url, timeout=10)
+
+            # Parse the HTML with BeautifulSoup
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Find the header container
+            date_elements = soup.select_one('div[data-module-name="article-header"]').select_one("div.Noto_Sans_xs_Sans-400-xs").select("span")
+            if date_elements:
                 for span in date_elements:
-                    date_text = span.text.strip().replace(" p.m.", " PM").replace(" a.m.", " AM")
+                    date_text = span.get_text(strip=True).replace(" p.m.", " PM").replace(" a.m.", " AM")
                     if "Published" in date_text:
-                        # Prioritize "Published" dates
+                        # Process "Published" date
                         cleaned_date_text = date_text.replace("Published", "").strip()
                         try:
                             parsed_date = datetime.strptime(cleaned_date_text, "%b %d, %Y, %I:%M %p")
-                            published_date_str = parsed_date.strftime("%Y-%m-%d %H:%M:%S")
-                            break  # Stop further processing after finding "Published"
+                            published_at = parsed_date.strftime("%Y-%m-%d %H:%M:%S")
+                            break  # Stop after finding "Published"
                         except ValueError:
-                            print(f"Unable to parse Published date: {cleaned_date_text}")
-                    elif "Updated" not in date_text:  # Fallback for general date format
+                            print(f"Unable to parse Published date of {url}: {cleaned_date_text}")
+                    elif "Updated" not in date_text:
                         try:
                             parsed_date = datetime.strptime(date_text, "%b %d, %Y, %I:%M %p")
-                            published_date_str = parsed_date.strftime("%Y-%m-%d %H:%M:%S")
+                            published_at = parsed_date.strftime("%Y-%m-%d %H:%M:%S")
                         except ValueError:
-                            print(f"Unable to parse fallback date: {date_text}")
+                            print(f"Unable to parse fallback date of {url}: {date_text}")
+        except Exception as e:
+            print(f"Error get publish date for URL {url}: {e}")
 
-                article['publish_at'] = published_date_str
-                break
-            except NoSuchElementException:
-                print(f"Retry to get publish date of {article['url']} attemp {attempt}")
-                if attempt < retries - 1:
-                    driver.refresh()
-            except Exception as e:
-                print(f"Error in get publish date of {article['url']}: {e}")
-                break
-            
+        article['published_at']  = published_at
     return articles
 
 # Main function to orchestrate the crawling
-def crawl_articles_by_topic(topic: str, max_records: int = None, type_crawl: str = 'incremental'):
+def crawl_articles_by_topic(topic: str, max_records: int = None):
     """function to set up the driver, crawl articles, and save them."""
     # URL to scrape
     URL = f"https://www.coindesk.com/{topic}"
@@ -157,12 +155,10 @@ def crawl_articles_by_topic(topic: str, max_records: int = None, type_crawl: str
     # Crawl articles
     
     STATE_FILE = f'last_crawled/coindesk/{topic}.json'
-    if type_crawl == 'incremental':
-        last_crawled = get_last_crawled(STATE_FILE=STATE_FILE)
-    elif type_crawl == 'full':
-        last_crawled = []
-    else:
-        raise Exception("Invalid type crawl")
+    minio_client = connect_minio()
+    prefix = f'web_crawler/coindesk/{topic}/coindesk_{topic}_initial_batch_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    
 
     articles_data = extract_articles(driver=driver, max_records=max_records, last_crawled=last_crawled)
     articles_data = get_publish_at(driver, articles_data)
@@ -180,7 +176,7 @@ def crawl_articles_by_topic(topic: str, max_records: int = None, type_crawl: str
         print(f"No new articles found.")
     else:
         # Save the extracted articles to a JSON file
-        object_key = f'web_crawler/coindesk/{topic}/coindesk_{topic}_{type_crawl}_crawled_at_{date.today()}.json'
+        object_key = f'web_crawler/coindesk/{topic}/coindesk_{topic}_incremental_crawled_at_{date.today()}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
 def multithreading_crawler(max_records: int = None):
@@ -202,7 +198,7 @@ def full_crawl_articles():
         prefix = f'web_crawler/coindesk/{topic}/coindesk_{topic}_initial_batch_'
         last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
         URL = f"https://www.coindesk.com/{topic}"
-        # Set up the WebDriver
+        print(f"Crawling URL: {URL}")
     
         # Open the URL
         driver.get(URL)
@@ -210,10 +206,8 @@ def full_crawl_articles():
         # Wait for the articles to load initially
         handle_cookie_consent(driver)
 
-        if last_crawled_id:
-            not_crawled = False
-        else:
-            not_crawled = True
+        not_crawled = last_crawled_id is None
+        
         article_num = 0
         articles_data = []
         page_size = 10
@@ -267,11 +261,14 @@ def full_crawl_articles():
                 ActionChains(driver).move_to_element(more_button).click().perform()
                 article_num += page_size
                 retries_count = 0
-                print(f"Complete crawl news of {topic} from {article_num} to {len(data_div)}")
+                print(f"Complete crawl {len(data_div)} news of {topic} ")
             except NoSuchElementException as e:
                 print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
                 retries_count +=1
                 if retries_count > retries:
+                    articles_data = get_publish_at(driver=driver,articles=articles_data)
+                    object_key = f'{prefix}{len(data_div)}.json'
+                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
                     break
             except Exception as e:
                 print("Error in click more: ", e)
