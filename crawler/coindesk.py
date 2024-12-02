@@ -7,9 +7,9 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
-from utils.minio_utils import upload_json_to_minio, connect_minio
-from utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
-from utils.chrome_driver_utils import setup_driver
+from crypto_utils.minio_utils import upload_json_to_minio, connect_minio
+from crypto_utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
+from crypto_utils.chrome_driver_utils import setup_driver
 from config.storage_config import CRYPTO_NEWS_BUCKET
 
 topics = ['markets', 'business', 'policy', 'tech', 'opinion', 'consensus-magazine', 'learn']

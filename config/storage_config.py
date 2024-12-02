@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from utils.common_utils import project_dir
+from crypto_utils.common_utils import project_dir
 
 # Load the .env file
 load_dotenv(f"{project_dir}/.env")
