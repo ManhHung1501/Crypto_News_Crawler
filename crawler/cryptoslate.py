@@ -4,7 +4,7 @@ from selenium.webdriver.common.by import By
 from crypto_utils.minio_utils import upload_json_to_minio, connect_minio
 from crypto_utils.common_utils import generate_url_hash, get_last_crawled,save_last_crawled, get_last_initial_crawled
 from crypto_utils.chrome_driver_utils import setup_driver, wait_for_page_load
-from config.storage_config import CRYPTO_NEWS_BUCKET
+from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from bs4 import BeautifulSoup
 
 # Get total page

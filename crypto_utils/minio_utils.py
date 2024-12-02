@@ -2,7 +2,7 @@ import json
 from minio import Minio
 from minio.error import S3Error
 from io import BytesIO
-from config.storage_config import MINIO_ENDPOINT,ACCESS_KEY,SECRET_KEY,CRYPTO_NEWS_BUCKET
+from crawler_config.storage_config import MINIO_ENDPOINT,ACCESS_KEY,SECRET_KEY,CRYPTO_NEWS_BUCKET
 
 def connect_minio() -> Minio:
     minio_client = Minio(
