@@ -4,7 +4,7 @@ from crawler_config.storage_config import SECRET_KEY, ACCESS_KEY, MINIO_ENDPOINT
 # Create Spark session with MinIO configurations
 spark = (SparkSession.builder
                 .appName("MinIO JSON Concatenation")
-                .config("spark.hadoop.fs.s3a.endpoint", MINIO_ENDPOINT)
+                .config("spark.hadoop.fs.s3a.endpoint", f"http://{MINIO_ENDPOINT}")
                 .config("spark.hadoop.fs.s3a.access.key", ACCESS_KEY)
                 .config("spark.hadoop.fs.s3a.secret.key", SECRET_KEY)
                 .config("spark.hadoop.fs.s3a.path.style.access", "true")
