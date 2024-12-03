@@ -167,7 +167,7 @@ def crawl_articles(max_records: int = None):
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
 def full_crawl_articles():
-    batch_size = 100
+    batch_size = 1000
     minio_client = connect_minio()
     
     prefix = f'web_crawler/cryptoslate/cryptoslate_initial_batch_'

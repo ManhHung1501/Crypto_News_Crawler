@@ -171,7 +171,7 @@ def multithreading_crawler(max_records: int = None):
 
 def full_crawl_articles(tag):
     driver = setup_driver()
-    batch_size = 100
+    batch_size = 1000
     minio_client = connect_minio()
     
     prefix = f'web_crawler/cointelegraph/{tag}/cointelegraph_{tag}_initial_batch_'
