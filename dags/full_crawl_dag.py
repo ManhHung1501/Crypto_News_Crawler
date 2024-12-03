@@ -32,6 +32,7 @@ with DAG(
                                 )
     
     with TaskGroup(group_id=f"Group_Crawler_Coindesk") as task_group_API_android:
+        previous_task = None
         for topic in Coindesk.topics:
             crawl_coindesk_task = PythonOperator(task_id=f'crawl_coindesk_{topic}',
                                         python_callable=coindesk.full_crawl_articles,
@@ -40,7 +41,12 @@ with DAG(
                                                     'topic': topic
                                                 }
                                         )
+            if previous_task:
+                previous_task >> crawl_coindesk_task
+            previous_task = crawl_coindesk_task
+
     with TaskGroup(group_id=f"Group_Crawler_Cointelegraph") as task_group_API_android:
+        previous_task = None
         for tag in Cointelegraph.tags:
             crawl_cointelegraph_task = PythonOperator(task_id=f'crawl_cointelegraph_{tag}',
                                         python_callable=cointelegraph.full_crawl_articles,
@@ -49,5 +55,7 @@ with DAG(
                                                     'tag': tag
                                                 }
                                         )
-    
+            if previous_task:
+                previous_task >> crawl_coindesk_task
+            previous_task = crawl_coindesk_task
    
