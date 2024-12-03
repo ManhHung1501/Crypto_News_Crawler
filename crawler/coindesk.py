@@ -233,12 +233,14 @@ def full_crawl_articles(topic):
     articles_data = []
     page_size = 10
     retries = 3
-    retries_count =1 
+    retries_count =1
+    previous_news = 0 
     while True:
         # Get all the articles on the current page
         data_div = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
+        current_news = len(data_div)
         articles = data_div[article_num: article_num+ page_size]
-        print(f"Crawling news from {article_num} to {len(data_div)} news of {topic} ")
+        print(f"Crawling news from {previous_news} to {current_news} news of {topic} ")
         for article in articles:
             try:
                 # Extract title
@@ -271,13 +273,17 @@ def full_crawl_articles(topic):
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
             
-        current_news = len(data_div)
+        
         # Click the "More stories" button to load more articles
         try:
             more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
             ActionChains(driver).move_to_element(more_button).click().perform()
-            article_num += page_size
-            retries_count = 0
+            if  current_news == previous_news:
+                time.sleep(3)
+            else:
+                previous_news = current_news
+                article_num += page_size
+                retries_count = 0
         except NoSuchElementException as e:
             print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
             retries_count +=1
