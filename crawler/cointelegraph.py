@@ -7,6 +7,7 @@ from crypto_utils.minio_utils import upload_json_to_minio, connect_minio
 from crypto_utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
 from crypto_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
+from bs4 import BeautifulSoup
 
 tags = ['bitcoin', 'ethereum', 'altcoin', 'blockchain', 'defi', 'regulation', 'business', 'nft', 'ai', 'adoption']
 
@@ -75,6 +76,49 @@ def extract_articles(driver, last_crawled : list =[], max_records: int = None, m
 
         driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
         time.sleep(random.uniform(2, 4))
+
+# Get detail content for article
+def get_detail_article(driver, articles):
+    for article in articles:
+        url = article['url']
+        content = "No content"
+        try:
+            driver.get(url)
+
+            # Wait for page load (optional: adjust sleep time or use WebDriverWait for dynamic elements)
+            wait_for_page_load(driver, ".post__article")
+
+            # Get the page source and parse it with BeautifulSoup
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+
+            # Find the article content
+            article_cards = soup.find("article", class_="post__article")
+            if article_cards:
+                for unwanted in article_cards.select(".post-meta, .post__title, .newsletter-subscription-form_k9oQq, .tags-list, .related-list, .reactions_3eiuR"):
+                    unwanted.decompose()
+                # Extract all text content and concatenate it
+                content = ' '.join(article_cards.stripped_strings)
+            else:
+                explained_blocks = soup.find_all('div', attrs={'data-ct-widget': 'explained-block'})
+                if explained_blocks:
+                    content = ""
+                    for block in explained_blocks:
+                        title = block.find('h2', attrs={'data-ct-widget': 'explained-block-title'})
+                        title_text = title.get_text(strip=True) if title else "No Title"
+
+                        # Extract the content from paragraphs
+                        paragraphs = block.find_all('p')
+                        content += title_text + " " + " ".join(p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True))
+
+        except Exception as e:
+            print(f'Error in url {url}: {e}')
+        
+        if content in ('No content', ''):
+            content = 'No content'
+            print(f'Failed to get content for {url}')
+
+        article['content'] = content
+    return articles
 
 # Main function to orchestrate the crawling
 def crawl_articles_by_tag(tag: str, max_records: int = None):
@@ -180,12 +224,12 @@ def full_crawl_articles():
                             "id": article_id,
                             "title": title_element.text,
                             "published_at": f"{published_at} 00:00:00",
-                            "content": article.find_element(By.CSS_SELECTOR, "p.post-card-inline__text").text,
                             "url": article_url,
                             "source": "cointelegraph.com"
                         })
                     
                     if len(articles_data) == batch_size:
+                        articles_data = get_detail_article(driver, articles_data)
                         new_batch = current_batch + batch_size
                         object_key = f'{prefix}{new_batch}.json'
                         upload_json_to_minio(json_data=articles_data,object_key=object_key)
@@ -204,6 +248,7 @@ def full_crawl_articles():
                 print(f"Get Error in load more news retries {retries_count}/{retries}")
                 retries_count+=1
                 if retries_count > retries:
+                    articles_data = get_detail_article(driver, articles_data)
                     object_key = f'{prefix}{len(data_div)}.json'
                     upload_json_to_minio(json_data=articles_data,object_key=object_key)
                     break

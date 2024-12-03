@@ -55,15 +55,11 @@ def extract_articles(driver, last_crawled: list = [], max_records: int = None, m
                     continue
                 title = title_element.text
     
-                # Extract content 
-                content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
-                content = content_element.text
-    
+
                 # Add the article data to the list
                 articles_data.append({
                     "id": article_id,
                     "title": title,
-                    "content": content,
                     "url": article_url,
                     "source": "coindesk.com"
                 })
@@ -101,10 +97,11 @@ def extract_articles(driver, last_crawled: list = [], max_records: int = None, m
     return articles_data
 
 # Get publish timestamp
-def get_publish_at(driver , articles):
+def get_detail_article(driver , articles):
     for article in articles:
         url = article['url']
         published_at = "1970-01-01 00:00:00"
+        content = "No content"
         try:
             # Make the HTTP request
             response = requests.get(url, timeout=10)
@@ -132,9 +129,23 @@ def get_publish_at(driver , articles):
                             published_at = parsed_date.strftime("%Y-%m-%d %H:%M:%S")
                         except ValueError:
                             print(f"Unable to parse fallback date of {url}: {date_text}")
+
+            # content                
+            article_header_div = soup.find('div', {'data-module-name': 'article-body'})
+            if article_header_div:
+                for unwanted in article_header_div.select(".border, .playlistThumb, .article-ad"):
+                    unwanted.decompose()
+            content = ' '.join(article_header_div.stripped_strings)
+            
         except Exception as e:
             print(f"Error get publish date for URL {url}: {e}")
+        
+        if published_at == "1970-01-01 00:00:00":
+            print(f'Failed to get publish date for {url}')
+        if content == "No content":
+            print(f'Failed to get content for {url}')
 
+        article['content']  = content 
         article['published_at']  = published_at
     return articles
 
@@ -161,7 +172,7 @@ def crawl_articles_by_topic(topic: str, max_records: int = None):
     
 
     articles_data = extract_articles(driver=driver, max_records=max_records, last_crawled=last_crawled)
-    articles_data = get_publish_at(driver, articles_data)
+    articles_data = get_detail_article(driver, articles_data)
 
     print(f"Success crawled {len(articles_data)} news of {topic}")
     
@@ -230,21 +241,17 @@ def full_crawl_articles():
                     if not_crawled:
                         title = title_element.text
             
-                        # Extract content 
-                        content_element = article.find_element(By.XPATH, ".//p[contains(@class, 'hidden') and contains(@class, 'md:block')]")
-                        content = content_element.text
-            
                         # Add the article data to the list
                         articles_data.append({
                             "id": article_id,
                             "title": title,
-                            "content": content,
                             "url": article_url,
                             "source": "coindesk.com"
                         })
-                    
+
+                    print(f"Complete crawl {len(data_div)} news of {topic} ")
                     if len(articles_data) == batch_size:
-                        articles_data = get_publish_at(driver=driver,articles=articles_data)
+                        articles_data = get_detail_article(driver=driver,articles=articles_data)
                         new_batch = current_batch + batch_size
                         object_key = f'{prefix}{new_batch}.json'
                         upload_json_to_minio(json_data=articles_data,object_key=object_key)
@@ -261,12 +268,11 @@ def full_crawl_articles():
                 ActionChains(driver).move_to_element(more_button).click().perform()
                 article_num += page_size
                 retries_count = 0
-                print(f"Complete crawl {len(data_div)} news of {topic} ")
             except NoSuchElementException as e:
                 print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
                 retries_count +=1
                 if retries_count > retries:
-                    articles_data = get_publish_at(driver=driver,articles=articles_data)
+                    articles_data = get_detail_article(driver=driver,articles=articles_data)
                     object_key = f'{prefix}{len(data_div)}.json'
                     upload_json_to_minio(json_data=articles_data,object_key=object_key)
                     break

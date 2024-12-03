@@ -1,7 +1,7 @@
 
-from crawler import cointelegraph,coindesk
+from crawler import cointelegraph,coindesk, cryptoslate
 
 
-cointelegraph.full_crawl_articles()
+coindesk.full_crawl_articles()
 
 

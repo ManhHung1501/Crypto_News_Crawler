@@ -86,14 +86,14 @@ def extract_articles(driver, last_crawled: list = [], max_records: int = None) -
         
     return articles_data
 
-def get_publish_at(articles):
+def get_detail_article(articles):
     for article in articles:
         published_at = "1970-01-01 00:00:00"
+        content = "No content"
         url = article['url']
         try:
             response = requests.get(url, timeout=10)
             soup = BeautifulSoup(response.content, "html.parser")
-            published_element = soup.select_one(".post-meta-single.sponsored .text span")
             post_header_div = soup.select_one(".post-header.article")
             author_element = soup.select_one(".author-info")
             if author_element:
@@ -116,6 +116,20 @@ def get_publish_at(articles):
             print(f'Failed to get publish date for {url}')
 
         article['published_at'] = published_at
+
+        article_card = soup.find("article", class_="full-article")
+        if article_card:
+            unwanted_cards = ".disclaimer, .posted-in, .post-meta-flex, .podcast-box, .unit-widgets, .link-page, .related-articles, .footer-disclaimer"
+            for unwanted in article.select(unwanted_cards):
+                unwanted.decompose()
+            content = ' '.join(article_card.stripped_strings)
+        else:
+            content = ' '.join([p.get_text(strip=True) for p in soup.select('article > p')])
+            
+        if content == "No content":
+            print(f"Failed to get content of url: {url}")
+            
+        article['content'] = content
     return articles
 
 # Main function to orchestrate the crawling
@@ -134,7 +148,7 @@ def crawl_articles(max_records: int = None):
     
 
     articles_data = extract_articles(driver=driver, max_records=max_records, last_crawled=last_crawled)
-    articles_data = get_publish_at(articles_data)
+    articles_data = get_detail_article(articles_data)
 
     print(f"Success crawled {len(articles_data)} news")
     
@@ -213,7 +227,7 @@ def full_crawl_articles():
                     
                     # Process and upload the batch
                     if len(articles_data) == batch_size:
-                        articles_data = get_publish_at(articles=articles_data)  # Adjust to parse publish dates
+                        articles_data = get_detail_article(articles=articles_data)  # Adjust to parse publish dates
                         new_batch = current_batch + batch_size
                         object_key = f'{prefix}{new_batch}.json'
                         upload_json_to_minio(json_data=articles_data, object_key=object_key)
@@ -229,7 +243,7 @@ def full_crawl_articles():
 
     # Final upload if there are remaining articles
     if articles_data:
-        articles_data = get_publish_at(articles=articles_data)
+        articles_data = get_detail_article(articles=articles_data)
         new_batch = current_batch + batch_size
         object_key = f'{prefix}{new_batch}.json'
         upload_json_to_minio(json_data=articles_data, object_key=object_key)

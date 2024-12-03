@@ -27,13 +27,13 @@ def setup_driver():
 
     driver_path = ChromeDriverManager().install()
     
-    binary_path = os.path.join(os.path.dirname(driver_path), "chromedriver")
+    binary_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe")
     if not os.path.isfile(binary_path):
         raise FileNotFoundError(f"ChromeDriver binary not found at: {binary_path}")
     if not os.access(binary_path, os.X_OK):
         raise PermissionError(f"ChromeDriver binary is not executable: {binary_path}")
     
-    service = Service(binary_path)
+    service = Service(executable_path=binary_path)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
@@ -44,6 +44,5 @@ def wait_for_page_load(driver, css_selector: str, timeout=10):
         # Wait until the elements are visible and present in the DOM
         wait = WebDriverWait(driver, timeout, poll_frequency=0.5)
         wait.until(EC.visibility_of_all_elements_located((By.CSS_SELECTOR, css_selector)))
-        print(f"Page loaded successfully with {css_selector} elements.")
     except TimeoutException:
         print(f"Timed out waiting for elements with CSS selector: {css_selector}")
