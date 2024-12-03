@@ -33,21 +33,21 @@ def concatenate_json_files(prefix: str):
     return df_dedup
 
 # Function to write the result back to MinIO
-def write_to_minio(df, output_prefix: str):
-    output_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{output_prefix}/"
+def write_to_minio(df, output_path: str):
+    output_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{output_path}"
     df.write.mode("overwrite").json(output_path)
 
 # Main function to run the job
 def main():
     import sys
     prefix = sys.argv[1]  
-    output_prefix = sys.argv[2]
+    output_path = sys.argv[2]
 
     # Concatenate the files based on the prefix
     concatenated_df = concatenate_json_files(prefix)
     
     # Optionally write the concatenated DataFrame back to MinIO
-    write_to_minio(concatenated_df, output_prefix)
+    write_to_minio(concatenated_df, output_path)
 
 if __name__ == "__main__":
     main()
