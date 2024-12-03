@@ -6,6 +6,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
+from crawler_config.chrome_config import CHROME_DRIVER_PATH
 import os
 
 def setup_driver():
@@ -25,15 +26,12 @@ def setup_driver():
     options.add_argument("--disable-extensions")
     options.add_argument("window-size=1200x600")
 
-    driver_path = ChromeDriverManager().install()
+    if not os.path.exists(CHROME_DRIVER_PATH) or not os.access(CHROME_DRIVER_PATH, os.X_OK):
+        print("ChromeDriver not found or not executable. Using ChromeDriverManager to install it.")
+        ChromeDriverManager().install()
     
-    binary_path = os.path.join(os.path.dirname(driver_path), "chromedriver.exe")
-    if not os.path.isfile(binary_path):
-        raise FileNotFoundError(f"ChromeDriver binary not found at: {binary_path}")
-    if not os.access(binary_path, os.X_OK):
-        raise PermissionError(f"ChromeDriver binary is not executable: {binary_path}")
     
-    service = Service(executable_path=binary_path)
+    service = Service(executable_path=CHROME_DRIVER_PATH)
     driver = webdriver.Chrome(service=service, options=options)
     return driver
 
