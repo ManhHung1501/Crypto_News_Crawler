@@ -56,6 +56,6 @@ with DAG(
                                                 }
                                         )
             if previous_task:
-                previous_task >> crawl_coindesk_task
-            previous_task = crawl_coindesk_task
+                previous_task >> crawl_cointelegraph_task
+            previous_task = crawl_cointelegraph_task
    
