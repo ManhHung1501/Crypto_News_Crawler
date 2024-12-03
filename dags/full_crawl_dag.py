@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.utils.task_group import TaskGroup
 from crawler import coindesk,cointelegraph,cryptoslate
-
+from crawler_constatns.crawl_constants import Coindesk, Cointelegraph
 
 
 # Default arguments for the DAG
@@ -25,17 +26,28 @@ with DAG(
     schedule_interval=None,
     catchup=False,
 ) as dag:
-    
-    crawl_coindesk_task = PythonOperator(task_id='crawl_coindesk',
-                                python_callable=coindesk.full_crawl_articles,
-                                provide_context=True
-                                )
-    crawl_cointelegraph_task = PythonOperator(task_id='crawl_cointelegraph',
-                                python_callable=cointelegraph.full_crawl_articles,
-                                provide_context=True
-                                )
     crawl_cryptoslate_task = PythonOperator(task_id='crawl_cryptoslate',
                                 python_callable=cryptoslate.full_crawl_articles,
                                 provide_context=True
                                 )
+    
+    with TaskGroup(group_id=f"Group_Crawler_Coindesk") as task_group_API_android:
+        for topic in Coindesk.topics:
+            crawl_coindesk_task = PythonOperator(task_id=f'crawl_coindesk_{topic}',
+                                        python_callable=coindesk.full_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'topic': topic
+                                                }
+                                        )
+    with TaskGroup(group_id=f"Group_Crawler_Cointelegraph") as task_group_API_android:
+        for tag in Cointelegraph.tags:
+            crawl_cointelegraph_task = PythonOperator(task_id=f'crawl_cointelegraph_{tag}',
+                                        python_callable=cointelegraph.full_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'tag': tag
+                                                }
+                                        )
+    
    
