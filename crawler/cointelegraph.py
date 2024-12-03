@@ -86,8 +86,6 @@ def get_detail_article(articles):
         content = "No content"
         try:
             driver.get(url)
-
-            # Wait for page load (optional: adjust sleep time or use WebDriverWait for dynamic elements)
             wait_for_page_load(driver, ".post__article")
 
             # Get the page source and parse it with BeautifulSoup
