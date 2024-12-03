@@ -19,6 +19,7 @@ spark = (SparkSession.builder
 def read_json_from_minio(prefix: str):
     s3_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{prefix}/*.json"
     df = spark.read.json(s3_path)
+    print(f"Reading {len(df.inputFiles())} from {prefix}")
     return df
 
 # Function to concatenate JSON files based on prefix
@@ -35,16 +36,19 @@ def concatenate_json_files(prefix: str):
 # Function to write the result back to MinIO
 def write_to_minio(df, output_path: str):
     output_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{output_path}"
-    df.write.mode("overwrite").json(output_path)
+    df.write.mode("append").json(output_path)
 
 # Main function to run the job
 def main():
     import sys
     prefix = sys.argv[1]  
     output_path = sys.argv[2]
+    print(f"Prefix: {prefix}")
+    print(f"output_path: {output_path}")
 
     # Concatenate the files based on the prefix
     concatenated_df = concatenate_json_files(prefix)
+    
     
     # Optionally write the concatenated DataFrame back to MinIO
     write_to_minio(concatenated_df, output_path)

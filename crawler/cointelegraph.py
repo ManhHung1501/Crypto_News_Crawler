@@ -8,7 +8,7 @@ from crawler_utils.common_utils import generate_url_hash, get_last_crawled, save
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from bs4 import BeautifulSoup
-from crawler_constatns.crawl_constants import Cointelegraph
+from crawler_constants.crawl_constants import Cointelegraph
 
 tags = Cointelegraph.tags
 

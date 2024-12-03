@@ -3,7 +3,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
 from crawler import coindesk,cointelegraph,cryptoslate
-from crawler_constatns.crawl_constants import Coindesk, Cointelegraph
+from crawler_constants.crawl_constants import Coindesk, Cointelegraph
 
 
 # Default arguments for the DAG
