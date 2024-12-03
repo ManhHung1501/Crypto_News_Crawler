@@ -1,10 +1,7 @@
-import os
 from datetime import datetime, timedelta
 from airflow import DAG
-from airflow.operators.python import PythonOperator
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
-from airflow.utils.task_group import TaskGroup
-from utils.common_utils import project_dir
+from crawler_utils.common_utils import project_dir
 
 
 # Default arguments for the DAG
