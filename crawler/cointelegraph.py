@@ -8,8 +8,9 @@ from crawler_utils.common_utils import generate_url_hash, get_last_crawled, save
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from bs4 import BeautifulSoup
+from crawler_constatns.crawl_constants import Cointelegraph
 
-tags = ['bitcoin', 'ethereum', 'altcoin', 'blockchain', 'defi', 'regulation', 'business', 'nft', 'ai', 'adoption']
+tags = Cointelegraph.tags
 
 # Function to extract articles from the page
 def extract_articles(driver, last_crawled : list =[], max_records: int = None, max_retries: int = 5) -> list:
@@ -78,7 +79,8 @@ def extract_articles(driver, last_crawled : list =[], max_records: int = None, m
         time.sleep(random.uniform(2, 4))
 
 # Get detail content for article
-def get_detail_article(driver, articles):
+def get_detail_article(articles):
+    driver = setup_driver()
     for article in articles:
         url = article['url']
         content = "No content"
@@ -118,6 +120,7 @@ def get_detail_article(driver, articles):
             print(f'Failed to get content for {url}')
 
         article['content'] = content
+    driver.quit()
     return articles
 
 # Main function to orchestrate the crawling
@@ -168,93 +171,93 @@ def multithreading_crawler(max_records: int = None):
             except Exception as e:
                 print(f"Error in thread of: {e}")
 
-def full_crawl_articles():
+def full_crawl_articles(tag):
     driver = setup_driver()
     batch_size = 100
     minio_client = connect_minio()
     
-    for tag in tags:
-        prefix = f'web_crawler/cointelegraph/{tag}/cointelegraph_{tag}_initial_batch_'
-        last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
-        URL = f"https://www.cointelegraph.com/tags/{tag}"
-        print(f"Crawling URL: {URL}")
-        # Set up the WebDriver
-    
-        # Open the URL
-        driver.get(URL)
+    prefix = f'web_crawler/cointelegraph/{tag}/cointelegraph_{tag}_initial_batch_'
+    last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
+    URL = f"https://www.cointelegraph.com/tags/{tag}"
+    print(f"Crawling URL: {URL}")
+    # Set up the WebDriver
 
-        # Wait for the articles to load initially
-        wait_for_page_load(driver,"div.tag-page")
-        try:
-            accept_cookies = driver.find_element(By.XPATH, '//button[@class="btn privacy-policy__accept-btn"]')
-            accept_cookies.click()
-        except NoSuchElementException:
-            print("No Accept cookies to click")
+    # Open the URL
+    driver.get(URL)
 
-        if last_crawled_id:
-            not_crawled = False
-        else:
-            not_crawled = True
-        article_num = 0
-        articles_data = []
-        retries = 3
-        retries_count =1 
-        page_size = 15
-        while True:
-            # Get all the articles on the current page
-            data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-card-inline__content")
-            articles = data_div[article_num: article_num+page_size]
-            for article in articles:
-                try:
-                    # Extract title
-                    title_element = article.find_element(By.CSS_SELECTOR, "a.post-card-inline__title-link")
-                    article_url = title_element.get_attribute("href")
-                    article_id = generate_url_hash(article_url)
-                    # Skip if the article URL has already been processed
-                    if not not_crawled and article_id == last_crawled_id:
-                        not_crawled = True
-                        continue
-                    if not_crawled:
-                        # Extract published date
-                        date_element = article.find_element(By.CSS_SELECTOR, "time")
-                        published_at = date_element.get_attribute("datetime")
+    # Wait for the articles to load initially
+    wait_for_page_load(driver,"div.tag-page")
+    try:
+        accept_cookies = driver.find_element(By.XPATH, '//button[@class="btn privacy-policy__accept-btn"]')
+        accept_cookies.click()
+    except NoSuchElementException:
+        print("No Accept cookies to click")
 
-                        # Add the article data to the list
-                        articles_data.append({
-                            "id": article_id,
-                            "title": title_element.text,
-                            "published_at": f"{published_at} 00:00:00",
-                            "url": article_url,
-                            "source": "cointelegraph.com"
-                        })
-                    
-                    if len(articles_data) == batch_size:
-                        articles_data = get_detail_article(driver, articles_data)
-                        new_batch = current_batch + batch_size
-                        object_key = f'{prefix}{new_batch}.json'
-                        upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                        
-                        current_batch = new_batch
-                        articles_data = []
-                except Exception as e:
-                    print(f"Error extracting data for an article: {e}")
-                
+    if last_crawled_id:
+        not_crawled = False
+    else:
+        not_crawled = True
+    article_num = 0
+    articles_data = []
+    retries = 3
+    retries_count =1 
+    page_size = 15
+    while True:
+        # Get all the articles on the current page
+        data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-card-inline__content")
+        articles = data_div[article_num: article_num+page_size]
+        for article in articles:
             try:
-                driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
-                print(f"Process from {article_num} to {len(data_div)}")
-                article_num += page_size
-                retries_count = 0
-            except IndexError:
-                print(f"Get Error in load more news retries {retries_count}/{retries}")
-                retries_count+=1
-                if retries_count > retries:
-                    articles_data = get_detail_article(driver, articles_data)
-                    object_key = f'{prefix}{len(data_div)}.json'
-                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                    break
-            # Wait for new articles to load
-            time.sleep(random.uniform(2, 4))
+                # Extract title
+                title_element = article.find_element(By.CSS_SELECTOR, "a.post-card-inline__title-link")
+                article_url = title_element.get_attribute("href")
+                article_id = generate_url_hash(article_url)
+                # Skip if the article URL has already been processed
+                if not not_crawled and article_id == last_crawled_id:
+                    not_crawled = True
+                    continue
+                if not_crawled:
+                    # Extract published date
+                    date_element = article.find_element(By.CSS_SELECTOR, "time")
+                    published_at = date_element.get_attribute("datetime")
 
+                    # Add the article data to the list
+                    articles_data.append({
+                        "id": article_id,
+                        "title": title_element.text,
+                        "published_at": f"{published_at} 00:00:00",
+                        "url": article_url,
+                        "source": "cointelegraph.com"
+                    })
+                
+                if len(articles_data) == batch_size:
+                    articles_data = get_detail_article(driver, articles_data)
+                    new_batch = current_batch + batch_size
+                    object_key = f'{prefix}{new_batch}.json'
+                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
+                    
+                    current_batch = new_batch
+                    articles_data = []
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+            
+        try:
+            driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
+            print(f"Process from {article_num} to {len(data_div)}")
+            article_num += page_size
+            retries_count = 0
+        except IndexError:
+            print(f"Get Error in load more news retries {retries_count}/{retries}")
+            retries_count+=1
+            if retries_count > retries:
+                articles_data = get_detail_article(driver, articles_data)
+                object_key = f'{prefix}{len(data_div)}.json'
+                upload_json_to_minio(json_data=articles_data,object_key=object_key)
+                driver.quit()
+                break
+        # Wait for new articles to load
+        time.sleep(random.uniform(2, 4))
+    driver.quit()
 
 # Run the crawling process
 if __name__ == "__main__":
