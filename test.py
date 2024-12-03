@@ -4,7 +4,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.action_chains import ActionChains
 from bs4 import BeautifulSoup
 from selenium.webdriver.chrome.options import Options
-from crypto_utils.chrome_driver_utils import setup_driver, wait_for_page_load
+from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 import requests
 from datetime import datetime
 

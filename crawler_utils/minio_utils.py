@@ -24,7 +24,7 @@ def upload_json_to_minio(json_data, object_key: str, bucket_name: str = CRYPTO_N
     try:
         minio_client = connect_minio()
         # Convert the list to a JSON string
-        json_string = json.dumps(json_data, indent=4, ensure_ascii=False)
+        json_string = json.dumps(json_data, indent=4, ensure_ascii=False, separators=(',', ':'))
 
         # Convert the JSON string to a bytes stream
         json_bytes = BytesIO(json_string.encode("utf-8"))
