@@ -1,4 +1,5 @@
 from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, TimestampType
 from crawler_config.storage_config import SECRET_KEY, ACCESS_KEY, MINIO_ENDPOINT, CRYPTO_NEWS_BUCKET
 
 # Create Spark session with MinIO configurations
@@ -17,8 +18,16 @@ spark = (SparkSession.builder
 
 # Function to read JSON files from MinIO based on the prefix
 def read_json_from_minio(partern: str):
+    schema = StructType([
+        StructField("content", StringType(), True),
+        StructField("id", StringType(), True),
+        StructField("published_at", StringType(), True),
+        StructField("source", StringType(), True),
+        StructField("title", StringType(), True),
+        StructField("url", StringType(), True)
+    ])
     s3_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{partern}"
-    df = spark.read.json(
+    df = spark.read.schema(schema).option("mode", "FAILFAST").json(
         path=s3_path,
         encoding="UTF-8",
         multiLine=True,
