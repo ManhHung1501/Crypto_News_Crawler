@@ -18,9 +18,9 @@ default_args = {
 
 # Define DAG
 with DAG(
-    dag_id='Appsflyer_Transformation_DAG',
+    dag_id='Concatenation_Crypto_News_Json',
     default_args=default_args,
-    tags=["Appsflyer", "Transformation", "Game"],
+    tags=["Crypto", "Concatenation", "Spark", "Json"],
     schedule_interval=None,
     catchup=False,
     max_active_runs=1,
