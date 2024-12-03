@@ -240,10 +240,11 @@ def full_crawl_articles(tag):
                     articles_data = []
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
-            
+        
+        current_news = len(data_div)
         try:
             driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
-            print(f"Process from {article_num} to {len(data_div)}")
+            print(f"Process from {article_num} to {current_news}")
             article_num += page_size
             retries_count = 0
         except IndexError:
@@ -251,7 +252,7 @@ def full_crawl_articles(tag):
             retries_count+=1
             if retries_count > retries:
                 articles_data = get_detail_article(articles_data)
-                object_key = f'{prefix}{len(data_div)}.json'
+                object_key = f'{prefix}{current_news}.json'
                 upload_json_to_minio(json_data=articles_data,object_key=object_key)
                 driver.quit()
                 break

@@ -1,5 +1,6 @@
 import time, random, requests
 from bs4 import BeautifulSoup
+from requests.exceptions import Timeout
 from datetime import date, datetime
 from selenium.webdriver.common.by import By
 from concurrent.futures import ThreadPoolExecutor
@@ -106,7 +107,16 @@ def get_detail_article( articles):
         content = "No content"
         try:
             # Make the HTTP request
-            response = requests.get(url, timeout=10)
+            for attempt in range(3):
+                try:
+                    response = requests.get(url, timeout=15)
+                    response.raise_for_status() 
+                except Timeout:
+                    print(f"Attempt {attempt + 1} timed out. Retrying for {url}...")
+                    time.sleep(10)
+                except requests.exceptions.RequestException as e:
+                    print(f"Request for {url} failed: {e}")
+                    continue
 
             # Parse the HTML with BeautifulSoup
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -206,7 +216,6 @@ def full_crawl_articles(topic):
     driver = setup_driver()
     batch_size = 100
     minio_client = connect_minio()
-
  
     prefix = f'web_crawler/coindesk/{topic}/coindesk_{topic}_initial_batch_'
     last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
@@ -220,7 +229,6 @@ def full_crawl_articles(topic):
     handle_cookie_consent(driver)
 
     not_crawled = last_crawled_id is None
-    
     article_num = 0
     articles_data = []
     page_size = 10
@@ -252,7 +260,6 @@ def full_crawl_articles(topic):
                         "source": "coindesk.com"
                     })
 
-                
                 if len(articles_data) == batch_size:
                     articles_data = get_detail_article(articles=articles_data)
                     new_batch = current_batch + batch_size
@@ -264,7 +271,7 @@ def full_crawl_articles(topic):
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
             
-
+        current_news = len(data_div)
         # Click the "More stories" button to load more articles
         try:
             more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
