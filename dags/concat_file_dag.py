@@ -44,7 +44,7 @@ with DAG(
                                                 conn_id='spark',
                                                 application=f"{project_dir}/crawler_processing/uinion_json.py",
                                                 application_args=[
-                                                    "web_crawler",
+                                                    "web_crawler/cryptoslate/*.json",
                                                     "result/crypto_news.json"
                                                 ],
                                                 conf=spark_conf,

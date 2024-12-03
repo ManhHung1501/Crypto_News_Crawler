@@ -16,15 +16,24 @@ spark = (SparkSession.builder
 
 
 # Function to read JSON files from MinIO based on the prefix
-def read_json_from_minio(prefix: str):
-    s3_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{prefix}/*.json"
-    df = spark.read.json(s3_path)
-    print(f"Reading {len(df.inputFiles())} from {prefix}")
+def read_json_from_minio(partern: str):
+    s3_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{partern}"
+    df = spark.read.json(
+        path=s3_path,
+        header=True,
+        inferSchema=True,
+        encoding="UTF-8",
+        quote='"',
+        escape='"',
+        multiLine=True,
+        recursiveFileLookup=True
+    )
+    print(f"Reading {len(df.inputFiles())} from {partern}")
     return df
 
-# Function to concatenate JSON files based on prefix
-def concatenate_json_files(prefix: str):
-    df = read_json_from_minio(prefix)
+# Function to concatenate JSON files based on partern
+def concatenate_json_files(partern: str):
+    df = read_json_from_minio(partern)
     # Deduplicate by the 'id' column
     df_dedup = df.dropDuplicates(["id"])
 
@@ -41,13 +50,13 @@ def write_to_minio(df, output_path: str):
 # Main function to run the job
 def main():
     import sys
-    prefix = sys.argv[1]  
+    partern = sys.argv[1]  
     output_path = sys.argv[2]
-    print(f"Prefix: {prefix}")
+    print(f"partern: {partern}")
     print(f"output_path: {output_path}")
 
     # Concatenate the files based on the prefix
-    concatenated_df = concatenate_json_files(prefix)
+    concatenated_df = concatenate_json_files(partern)
     
     
     # Optionally write the concatenated DataFrame back to MinIO
