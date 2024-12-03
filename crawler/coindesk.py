@@ -228,6 +228,7 @@ def full_crawl_articles():
             # Get all the articles on the current page
             data_div = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
             articles = data_div[article_num: article_num+ page_size]
+            print(f"Crawling news from {article_num} to {len(data_div)} news of {topic} ")
             for article in articles:
                 try:
                     # Extract title
@@ -249,7 +250,7 @@ def full_crawl_articles():
                             "source": "coindesk.com"
                         })
 
-                    print(f"Complete crawl {len(data_div)} news of {topic} ")
+                    
                     if len(articles_data) == batch_size:
                         articles_data = get_detail_article(driver=driver,articles=articles_data)
                         new_batch = current_batch + batch_size

@@ -120,7 +120,7 @@ def get_detail_article(articles):
         article_card = soup.find("article", class_="full-article")
         if article_card:
             unwanted_cards = ".disclaimer, .posted-in, .post-meta-flex, .podcast-box, .unit-widgets, .link-page, .related-articles, .footer-disclaimer"
-            for unwanted in article.select(unwanted_cards):
+            for unwanted in article_card.select(unwanted_cards):
                 unwanted.decompose()
             content = ' '.join(article_card.stripped_strings)
         else:
@@ -211,16 +211,11 @@ def full_crawl_articles():
                     if not not_crawled and article_id == last_crawled_id:
                         not_crawled = True
                         continue
-                    if not_crawled:
-                        # Extract content
-                        content_element = article.select_one("div.excerpt p")
-                        content = content_element.text.strip() if content_element else None
-                        
+                    if not_crawled:                 
                         # Add the article data to the list
                         articles_data.append({
                             "id": article_id,
                             "title": title,
-                            "content": content,
                             "url": article_url,
                             "source": "cryptoslate.com"
                         })
