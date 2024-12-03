@@ -231,7 +231,7 @@ def full_crawl_articles(tag):
                     })
                 
                 if len(articles_data) == batch_size:
-                    articles_data = get_detail_article(driver, articles_data)
+                    articles_data = get_detail_article(articles_data)
                     new_batch = current_batch + batch_size
                     object_key = f'{prefix}{new_batch}.json'
                     upload_json_to_minio(json_data=articles_data,object_key=object_key)
@@ -250,7 +250,7 @@ def full_crawl_articles(tag):
             print(f"Get Error in load more news retries {retries_count}/{retries}")
             retries_count+=1
             if retries_count > retries:
-                articles_data = get_detail_article(driver, articles_data)
+                articles_data = get_detail_article(articles_data)
                 object_key = f'{prefix}{len(data_div)}.json'
                 upload_json_to_minio(json_data=articles_data,object_key=object_key)
                 driver.quit()
