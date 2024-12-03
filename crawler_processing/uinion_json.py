@@ -20,10 +20,7 @@ def read_json_from_minio(partern: str):
     s3_path = f"s3a://{CRYPTO_NEWS_BUCKET}/{partern}"
     df = spark.read.json(
         path=s3_path,
-        inferSchema=True,
         encoding="UTF-8",
-        quote='"',
-        escape='"',
         multiLine=True,
         recursiveFileLookup=True
     )
