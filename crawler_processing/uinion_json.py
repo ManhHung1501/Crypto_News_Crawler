@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType
 from crawler_config.storage_config import SECRET_KEY, ACCESS_KEY, MINIO_ENDPOINT, CRYPTO_NEWS_BUCKET
 
 # Create Spark session with MinIO configurations
