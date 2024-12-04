@@ -189,7 +189,7 @@ def full_crawl_articles():
 
             # Check if the button is visible and clickable
             if load_more_button.is_displayed():
-                driver.save_screenshot('te1.png')
+                driver.save_screenshot('image/te1.png')
                 print("Clicking 'Load More' button...")
                 ActionChains(driver).move_to_element(load_more_button).click().perform()
                 
@@ -200,7 +200,7 @@ def full_crawl_articles():
                 
                 # Wait a bit to allow all new articles to load
                 time.sleep(2)
-                driver.save_screenshot('te.png')
+                driver.save_screenshot('image/te.png')
             
             else:
                 print("No more articles to load.")
