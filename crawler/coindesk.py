@@ -246,6 +246,8 @@ def full_crawl_articles(topic):
                 By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]'
             ).find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
             current_news = len(data_div)
+            if current_news == previous_news:
+                time.sleep(3)
             articles = data_div[previous_news : current_news]
             print(
                 f"Crawling news from {previous_news} to {current_news} news of {topic}"
