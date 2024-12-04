@@ -273,6 +273,7 @@ def full_crawl_articles(topic):
                     articles_data = []
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
+                driver.save_screenshot('error.png')
                 time.sleep(3)
         
         # Click the "More stories" button to load more articles
