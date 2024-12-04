@@ -195,7 +195,6 @@ def full_crawl_articles():
                 EC.presence_of_element_located((By.CSS_SELECTOR, "div.jeg_block_loadmore a"))
             )
             if load_more_button.is_displayed() and load_more_button.is_enabled():
-                print("Clicking 'Load More' button...")
                 driver.execute_script("arguments[0].scrollIntoView(true);", load_more_button)
                 load_more_button.click()
                 previous_news = current_news
