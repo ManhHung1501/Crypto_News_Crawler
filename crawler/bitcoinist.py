@@ -9,26 +9,26 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
-from crawler_utils.chrome_driver_utils import setup_driver
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, project_dir
+from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
 # Function to convert relative time to a datetime object
 def convert_relative_time_to_datetime(relative_time_str):
     relative_time_str = relative_time_str.lower()
 
-    # Current time (you can adjust this as needed)
+    # Current time
     current_time = datetime.now()
 
-    # Regular expression to match different time units (minute, hour, day, week, month, year)
+    # Regular expression to match different time units (second, minute, hour, day, week, month, year)
     time_patterns = {
-        'second': r"(\d+)\s*(second|second[s]?)\s*ago",
-        'minute': r"(\d+)\s*(minute|minute[s]?)\s*ago",
-        'hour': r"(\d+)\s*(hour|hour[s]?)\s*ago",
-        'day': r"(\d+)\s*(day|day[s]?)\s*ago",
-        'week': r"(\d+)\s*(week|week[s]?)\s*ago",
-        'month': r"(\d+)\s*(month|month[s]?)\s*ago",
-        'year': r"(\d+)\s*(year|year[s]?)\s*ago",
+        'second': r"(\d+)\s*(second|seconds)\s*ago",
+        'minute': r"(\d+)\s*(minute|minutes)\s*ago",
+        'hour': r"(\d+)\s*(hour|hours)\s*ago",
+        'day': r"(\d+)\s*(day|days)\s*ago",
+        'week': r"(\d+)\s*(week|weeks)\s*ago",
+        'month': r"(\d+)\s*(month|months)\s*ago",
+        'year': r"(\d+)\s*(year|years)\s*ago",
     }
 
     # Search for matches and apply the corresponding relativedelta
@@ -37,21 +37,24 @@ def convert_relative_time_to_datetime(relative_time_str):
         if match:
             amount = int(match.group(1))
             if unit == 'second':
-                return current_time - relativedelta(minutes=amount)
+                calculated_time = current_time - relativedelta(seconds=amount)
             elif unit == 'minute':
-                return current_time - relativedelta(minutes=amount)
+                calculated_time = current_time - relativedelta(minutes=amount)
             elif unit == 'hour':
-                return current_time - relativedelta(hours=amount)
+                calculated_time = current_time - relativedelta(hours=amount)
             elif unit == 'day':
-                return current_time - relativedelta(days=amount)
+                calculated_time = current_time - relativedelta(days=amount)
             elif unit == 'week':
-                return current_time - relativedelta(weeks=amount)
+                calculated_time = current_time - relativedelta(weeks=amount)
             elif unit == 'month':
-                return current_time - relativedelta(months=amount)
+                calculated_time = current_time - relativedelta(months=amount)
             elif unit == 'year':
-                return current_time - relativedelta(years=amount)
-
-    # Return None if no match is found
+                calculated_time = current_time - relativedelta(years=amount)
+            
+            # Return the result in 'yyyy-mm-dd hh:mm:ss' format
+            return calculated_time.strftime('%Y-%m-%d %H:%M:%S')
+    
+    # If no match found, return a default value
     return "1970-01-01 00:00:00"
 
 def handle_cookie_consent(driver):
@@ -76,6 +79,7 @@ def get_detail_article( articles):
     for article in articles:
         url = article['url']
         content = "No content"
+        published_at = "1970-01-01 00:00:00"
         try:
             # Make the HTTP request
             try:
@@ -92,14 +96,18 @@ def get_detail_article( articles):
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Find the header container
-            date_element = soup.select_one("div.jeg_meta_date").select("span")
+            date_element = soup.find('div', class_='jeg_meta_date')
             if date_element:
-                published_at = convert_relative_time_to_datetime(date_element.get_text(strip=True))      
+                print(date_element.get_text(strip=True))
+                published_at = convert_relative_time_to_datetime(date_element.get_text(strip=True))  
+            else: 
+                print(f"No date_element found for {url}")    
 
             # content                
             article_content_div = soup.select_one('div.jeg_main_content')
             if article_content_div:
-                for unwanted in article_content_div.select(".related-reading-shortcode, .playlistThumb, .article-ad"):
+                unwanteds_card = ".related-reading-shortcode, .playlistThumb, .article-ad, .jeg_sharelist, .newsletter-sign-up, .jnews_author_box_container, .jnews_related_post_container"
+                for unwanted in article_content_div.select(unwanteds_card):
                     unwanted.decompose()
                 content = ' '.join(article_content_div.stripped_strings)
             
@@ -118,7 +126,7 @@ def get_detail_article( articles):
 
 def full_crawl_articles():
     driver = setup_driver()
-    batch_size = 1000
+    
     minio_client = connect_minio()
  
     prefix = f'web_crawler/bitcoinist/bitcoinist_initial_batch_'
@@ -131,24 +139,27 @@ def full_crawl_articles():
 
     # Wait for the articles to load initially
     handle_cookie_consent(driver)
+    wait_for_page_load(driver, 'div.jeg_posts')
 
     not_crawled = last_crawled_id is None
-    article_num = 0
     articles_data = []
-    page_size = 12
+    batch_size = 1000
     retries = 3
     retries_count =1
     previous_news = 0 
     while True:
         # Get all the articles on the current page
-        data_div = driver.find_element(By.CSS_SELECTOR, 'div.archive-posts').find_elements(By.CSS_SELECTOR, "article.jeg_post")
+        container = driver.find_element(By.CSS_SELECTOR, "div.jeg_posts")
+
+        # Find all the articles within the container
+        data_div = container.find_elements(By.CSS_SELECTOR, "article.jeg_post")
         current_news = len(data_div)
-        articles = data_div[article_num: article_num+ page_size]
+        articles = data_div[previous_news: current_news]
         print(f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:
             try:
                 # Extract title
-                link_element = article.find_element(By.CSS_SELECTOR, "h3.jeg_post_title > a")
+                link_element = article.find_element(By.CSS_SELECTOR, ".jeg_postblock_content .jeg_post_title a")
                 article_url = link_element.get_attribute("href")
                 article_id = generate_url_hash(article_url)
                 # Skip if the article URL has already been processed
@@ -165,13 +176,11 @@ def full_crawl_articles():
                         "url": article_url,
                         "source": "bitcoinist.com"
                     })
-                    print(articles_data)
                 if len(articles_data) == batch_size:
                     articles_data = get_detail_article(articles=articles_data)
                     new_batch = current_batch + batch_size
                     object_key = f'{prefix}{new_batch}.json'
                     upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                    
                     current_batch = new_batch
                     articles_data = []
             except Exception as e:
@@ -180,30 +189,43 @@ def full_crawl_articles():
         
         # Click the "More stories" button to load more articles
         try:
-            load_more_button = driver.find_element(By.CSS_SELECTOR, "div.jeg_block_loadmore > a")
-            ActionChains(driver).move_to_element(load_more_button).click().perform()
-            if  current_news == previous_news:
-                time.sleep(3)
-            else:
+            load_more_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div.jeg_block_loadmore a"))
+            )
+            if load_more_button.is_displayed() and load_more_button.is_enabled():
+                print("Clicking 'Load More' button...")
+                driver.execute_script("arguments[0].scrollIntoView(true);", load_more_button)
+                load_more_button.click()
                 previous_news = current_news
-                article_num += page_size
-                retries_count = 0
+            else:
+                print("No more articles to load or button not clickable.")
+                break
+                
+            # Wait a bit to allow all new articles to load
+            time.sleep(2)
+            driver.save_screenshot(f'{project_dir}/image/te.png')
+            
+
+            if current_news == previous_news:
+                time.sleep(3)
+            
         except NoSuchElementException as e:
             print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
             retries_count +=1
             if retries_count > retries:
-                articles_data = get_detail_article(articles=articles_data)
-                object_key = f'{prefix}{current_news}.json'
-                upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                driver.quit()
                 break
         except Exception as e:
             print("Error in click more: ", e)
-            driver.quit()
             break
                 
         # Wait for new articles to load
         time.sleep(random.uniform(2, 4))
+        break
+    if articles_data:
+        articles_data = get_detail_article(articles=articles_data)
+        object_key = f'{prefix}{current_news}.json'
+        upload_json_to_minio(json_data=articles_data,object_key=object_key)
+
     driver.quit()
     
 # Run the crawling process

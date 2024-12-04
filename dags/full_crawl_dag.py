@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
-from crawler import coindesk,cointelegraph,cryptoslate
+from crawler import coindesk,cointelegraph,cryptoslate, bitcoinist
 from crawler_constants.crawl_constants import Coindesk, Cointelegraph
 
 
@@ -28,6 +28,10 @@ with DAG(
 ) as dag:
     crawl_cryptoslate_task = PythonOperator(task_id='crawl_cryptoslate',
                                 python_callable=cryptoslate.full_crawl_articles,
+                                provide_context=True
+                                )
+    crawl_bitcoinist_task = PythonOperator(task_id='crawl_bitcoinist',
+                                python_callable=bitcoinist.full_crawl_articles,
                                 provide_context=True
                                 )
     
