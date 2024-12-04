@@ -217,9 +217,11 @@ def full_crawl_articles(topic):
     driver = setup_driver()
     batch_size = 1000
     minio_client = connect_minio()
- 
+
     prefix = f'web_crawler/coindesk/{topic}/coindesk_{topic}_initial_batch_'
-    last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
+    last_crawled_id, current_batch = get_last_initial_crawled(
+        minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix
+    )
     URL = f"https://www.coindesk.com/{topic}"
     print(f"Crawling URL: {URL}")
 
@@ -230,81 +232,117 @@ def full_crawl_articles(topic):
     handle_cookie_consent(driver)
 
     not_crawled = last_crawled_id is None
-    article_num = 0
     articles_data = []
-    page_size = 10
     retries = 3
-    retries_count =1
-    previous_news = 0 
-    while True:
-        # Get all the articles on the current page
-        data_div = driver.find_element(By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]').find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
-        current_news = len(data_div)
-        articles = data_div[article_num: article_num+ page_size]
-        print(f"Crawling news from {previous_news} to {current_news} news of {topic} ")
-        for article in articles:
-            try:
-                # Extract title
-                title_element = article.find_element(By.CSS_SELECTOR, "a.text-color-charcoal-900")
-                article_url = title_element.get_attribute("href")
-                article_id = generate_url_hash(article_url)
-                # Skip if the article URL has already been processed
-                if not not_crawled and article_id == last_crawled_id:
-                    not_crawled = True
-                    continue
-                if not_crawled:
-                    title = title_element.text
-        
-                    # Add the article data to the list
-                    articles_data.append({
-                        "id": article_id,
-                        "title": title,
-                        "url": article_url,
-                        "source": "coindesk.com"
-                    })
+    retry_count = 0
+    article_num = 0
+    previous_news = 0
+    page_size = 10
 
-                if len(articles_data) == batch_size:
-                    articles_data = get_detail_article(articles=articles_data)
-                    new_batch = current_batch + batch_size
-                    object_key = f'{prefix}{new_batch}.json'
-                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                    
-                    current_batch = new_batch
-                    articles_data = []
-            except Exception as e:
-                print(f"Error extracting data for an article: {e}")
-                
-                driver.save_screenshot(f'{project_dir}/image/error_{current_news}.png')
-                time.sleep(3)
-        
-        # Click the "More stories" button to load more articles
+    while True:
         try:
-            more_button = driver.find_element(By.CSS_SELECTOR, "button.bg-white.hover\\:opacity-80.cursor-pointer")
-            ActionChains(driver).move_to_element(more_button).click().perform()
-            if  current_news == previous_news:
-                time.sleep(3)
-            else:
+            # Re-locate articles dynamically to avoid stale element issues
+            data_div = driver.find_element(
+                By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]'
+            ).find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
+            current_news = len(data_div)
+            articles = data_div[article_num : article_num + page_size]
+            print(
+                f"Crawling news from {previous_news} to {current_news} news of {topic}"
+            )
+
+            for article in articles:
+                retry_article = 0
+                while retry_article < 3:  # Retry mechanism for individual articles
+                    try:
+                        title_element = article.find_element(
+                            By.CSS_SELECTOR, "a.text-color-charcoal-900"
+                        )
+                        article_url = title_element.get_attribute("href")
+                        article_id = generate_url_hash(article_url)
+
+                        # Skip if the article URL has already been processed
+                        if not not_crawled and article_id == last_crawled_id:
+                            not_crawled = True
+                            continue
+
+                        if not_crawled:
+                            title = title_element.text
+                            # Add the article data to the list
+                            articles_data.append(
+                                {
+                                    "id": article_id,
+                                    "title": title,
+                                    "url": article_url,
+                                    "source": "coindesk.com",
+                                }
+                            )
+
+                        # Upload in batches
+                        if len(articles_data) == batch_size:
+                            articles_data = get_detail_article(
+                                articles=articles_data
+                            )
+                            new_batch = current_batch + batch_size
+                            object_key = f"{prefix}{new_batch}.json"
+                            upload_json_to_minio(
+                                json_data=articles_data, object_key=object_key
+                            )
+                            current_batch = new_batch
+                            articles_data = []
+
+                        break  # Exit retry loop if successful
+                    except StaleElementReferenceException:
+                        retry_article += 1
+                        print(
+                            f"Retrying stale article: Attempt {retry_article}"
+                        )
+                        time.sleep(random.uniform(1, 2))
+                    except Exception as e:
+                        print(f"Error processing article: {e}")
+                        break
+
+            # Update article number for next page
+            article_num += page_size
+
+            # Click the "More stories" button to load more articles
+            try:
+                more_button = driver.find_element(
+                    By.CSS_SELECTOR,
+                    "button.bg-white.hover\\:opacity-80.cursor-pointer",
+                )
+                ActionChains(driver).move_to_element(more_button).click().perform()
+                print("Clicked 'More stories' button successfully.")
+                retry_count = 0
                 previous_news = current_news
-                article_num += page_size
-                retries_count = 0
-        except NoSuchElementException as e:
-            print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
-            retries_count +=1
-            if retries_count > retries:
-                articles_data = get_detail_article(articles=articles_data)
-                object_key = f'{prefix}{current_news}.json'
-                upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                driver.quit()
+            except NoSuchElementException:
+                retry_count += 1
+                print(
+                    f"No 'More stories' button found. Retry {retry_count}/{retries}"
+                )
+                if retry_count > retries:
+                    print("Max retries reached for 'More stories' button. Exiting.")
+                    break
+            except Exception as e:
+                print(f"Error clicking 'More stories' button: {e}")
                 break
-        
+
+            # Wait for new articles to load
+            time.sleep(random.uniform(2, 4))
+
         except Exception as e:
-            print("Error in click more: ", e)
-            driver.quit()
+            print(f"Error during crawling loop: {e}")
             break
-                
-        # Wait for new articles to load
-        time.sleep(random.uniform(2, 4))
+
+    # Upload remaining data
+    if articles_data:
+        articles_data = get_detail_article(articles=articles_data)
+        object_key = f"{prefix}{current_news}.json"
+        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+
+    # Ensure the driver quits properly
     driver.quit()
+    print("Crawling completed.")
     
 # Run the crawling process
 if __name__ == "__main__":
