@@ -41,7 +41,7 @@ with DAG(
                                         python_callable=newsbitcoin.full_crawl_articles,
                                         provide_context=True,
                                         op_kwargs={
-                                                    'topic': category
+                                                    'category': category
                                                 }
                                         )
             if previous_task:
