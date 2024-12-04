@@ -141,7 +141,7 @@ def full_crawl_articles(category):
     
     not_crawled = last_crawled_id is None
     articles_data = []
-    batch_size = 50
+    batch_size = 100
     while True:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(1)
