@@ -129,7 +129,7 @@ def get_detail_article( articles):
                     date_text = span.get_text(strip=True).replace(" p.m.", " PM").replace(" a.m.", " AM")
                     if "Published" in date_text:
                         # Process "Published" date
-                        cleaned_date_text = date_text.replace("Published", "").strip()
+                        cleaned_date_text = date_text.replace("Published", "").replace("UTC", "").strip()
                         try:
                             parsed_date = datetime.strptime(cleaned_date_text, "%b %d, %Y, %I:%M %p")
                             published_at = parsed_date.strftime("%Y-%m-%d %H:%M:%S")

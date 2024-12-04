@@ -197,9 +197,11 @@ def full_crawl_articles():
                 WebDriverWait(driver, 10).until(
                     EC.invisibility_of_element_located((By.CSS_SELECTOR, ".module-preloader"))
                 )
-                driver.save_screenshot('te.png')
+                
                 # Wait a bit to allow all new articles to load
                 time.sleep(2)
+                driver.save_screenshot('te.png')
+            
             else:
                 print("No more articles to load.")
                 break  
