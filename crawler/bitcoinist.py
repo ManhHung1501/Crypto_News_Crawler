@@ -143,7 +143,7 @@ def full_crawl_articles():
 
     not_crawled = last_crawled_id is None
     articles_data = []
-    batch_size = 1000
+    batch_size = 100
     retries = 3
     retries_count =1
     previous_news = 0 
@@ -220,7 +220,7 @@ def full_crawl_articles():
                 
         # Wait for new articles to load
         time.sleep(random.uniform(2, 4))
-        break
+
     if articles_data:
         articles_data = get_detail_article(articles=articles_data)
         object_key = f'{prefix}{current_news}.json'
