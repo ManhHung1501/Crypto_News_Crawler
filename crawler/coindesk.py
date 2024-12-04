@@ -126,7 +126,7 @@ def get_detail_article( articles):
             date_elements = soup.select_one('div[data-module-name="article-header"]').select_one("div.Noto_Sans_xs_Sans-400-xs").select("span")
             if date_elements:
                 for span in date_elements:
-                    date_text = span.get_text(strip=True).replace(" p.m.", " PM").replace(" a.m.", " AM")
+                    date_text = span.get_text(strip=True).replace(" p.m.", " PM").replace(" a.m.", " AM").replace("UTC", "")
                     if "Published" in date_text:
                         # Process "Published" date
                         cleaned_date_text = date_text.replace("Published", "").replace("UTC", "").strip()
