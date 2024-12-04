@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
-from crawler import coindesk,cointelegraph,cryptoslate, bitcoinist
-from crawler_constants.crawl_constants import Coindesk, Cointelegraph
+from crawler import coindesk,cointelegraph,cryptoslate, bitcoinist, newsbitcoin
+from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin
 
 
 # Default arguments for the DAG
@@ -34,7 +34,19 @@ with DAG(
                                 python_callable=bitcoinist.full_crawl_articles,
                                 provide_context=True
                                 )
-    
+    with TaskGroup(group_id=f"Group_Crawler_NewsBitcoin") as task_group_API_android:
+        previous_task = None
+        for category in NewsBitcoin.categories:
+            crawl_newsbitcoin_task = PythonOperator(task_id=f'crawl_newsbitcoin_{category}',
+                                        python_callable=newsbitcoin.full_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'topic': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_newsbitcoin_task
+            previous_task = crawl_newsbitcoin_task
     with TaskGroup(group_id=f"Group_Crawler_Coindesk") as task_group_API_android:
         previous_task = None
         for topic in Coindesk.topics:

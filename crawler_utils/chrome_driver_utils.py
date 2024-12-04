@@ -37,7 +37,7 @@ def setup_driver():
     return driver
 
 # Function to wait for page to load
-def wait_for_page_load(driver, css_selector: str, timeout=10):
+def wait_for_page_load(driver, css_selector: str, timeout=20):
     """Wait for the articles to load on the page."""
     try:
         # Wait until the elements are visible and present in the DOM

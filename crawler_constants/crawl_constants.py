@@ -3,3 +3,6 @@ class Cointelegraph:
 
 class Coindesk:
     topics = ['markets', 'business', 'policy', 'tech', 'opinion', 'consensus-magazine', 'learn']
+
+class NewsBitcoin:
+    categories = ['market-updates', 'finance', 'economics', 'blockchain', 'markets-and-prices', 'mining', 'news-bytes', 'regulation', 'legal', 'learning-insights']
