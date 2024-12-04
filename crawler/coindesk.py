@@ -235,7 +235,6 @@ def full_crawl_articles(topic):
     articles_data = []
     retries = 3
     retry_count = 0
-    article_num = 0
     previous_news = 0
     page_size = 10
 
@@ -246,7 +245,7 @@ def full_crawl_articles(topic):
                 By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]'
             ).find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
             current_news = len(data_div)
-            articles = data_div[article_num : article_num + page_size]
+            articles = data_div[previous_news : current_news]
             print(
                 f"Crawling news from {previous_news} to {current_news} news of {topic}"
             )
@@ -301,9 +300,6 @@ def full_crawl_articles(topic):
                     except Exception as e:
                         print(f"Error processing article: {e}")
                         break
-
-            # Update article number for next page
-            article_num += page_size
 
             # Click the "More stories" button to load more articles
             try:
