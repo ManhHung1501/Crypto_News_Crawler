@@ -110,7 +110,7 @@ def get_detail_article( articles):
         try:
             # Make the HTTP request
             try:
-                response = requests.get(url, timeout=15)
+                response = requests.get(url, timeout=10)
                 response.raise_for_status() 
             except Timeout:
                 print(f"timed out for {url}...")
