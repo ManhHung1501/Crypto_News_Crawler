@@ -39,16 +39,16 @@ def get_last_initial_crawled(minio_client, bucket, prefix):
             last_batch = 0
 
         # Find the latest file based on the batch number
-        latest_file = max(files, key=lambda x: x[1])[0]
-
+        latest_file = max(files, key=lambda x: x[1])
+        
         # Retrieve the content of the latest file
-        response = minio_client.get_object(bucket, latest_file)
+        response = minio_client.get_object(bucket, latest_file[0])
         file_content = response.read().decode('utf-8')
         
         # Parse the JSON content
         data = json.loads(file_content)
         last_id = data[-1]['id']
-        last_batch = files[-1][1]
+        last_batch = latest_file[1]
         
     except Exception as e:
         print(f"Error in get last initial crawled: {e}")
