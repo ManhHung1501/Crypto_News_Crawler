@@ -98,7 +98,6 @@ def get_detail_article( articles):
             # Find the header container
             date_element = soup.find('div', class_='jeg_meta_date')
             if date_element:
-                print(date_element.get_text(strip=True))
                 published_at = convert_relative_time_to_datetime(date_element.get_text(strip=True))  
             else: 
                 print(f"No date_element found for {url}")    
