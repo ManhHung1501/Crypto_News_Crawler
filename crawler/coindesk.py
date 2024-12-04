@@ -233,12 +233,7 @@ def full_crawl_articles(topic):
 
     not_crawled = last_crawled_id is None
     articles_data = []
-    retries = 3
-    retry_count = 0
-    article_num = 0
     previous_news = 0
-    page_size = 10
-
     while True:
         try:
             # Dynamically re-locate articles to avoid stale element issues
@@ -321,13 +316,10 @@ def full_crawl_articles(topic):
                 retry_count = 0
                 previous_news = current_news
             except NoSuchElementException:
-                retry_count += 1
                 print(
-                    f"No 'More stories' button found. Retry {retry_count}/{retries}"
+                    f"No 'More stories' button found"
                 )
-                if retry_count > retries:
-                    print("Max retries reached for 'More stories' button. Exiting.")
-                    break
+
             except Exception as e:
                 print(f"Error clicking 'More stories' button: {e}")
                 break
