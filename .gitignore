@@ -9,5 +9,5 @@ last_crawled/
 
 .env
 
-
+*.png
 
