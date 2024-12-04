@@ -235,12 +235,13 @@ def full_crawl_articles(topic):
     articles_data = []
     retries = 3
     retry_count = 0
+    article_num = 0
     previous_news = 0
     page_size = 10
 
     while True:
         try:
-            # Re-locate articles dynamically to avoid stale element issues
+            # Dynamically re-locate articles to avoid stale element issues
             data_div = driver.find_element(
                 By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]'
             ).find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
@@ -251,9 +252,10 @@ def full_crawl_articles(topic):
             )
 
             for article in articles:
-                retry_article = 0
-                while retry_article < 3:  # Retry mechanism for individual articles
+                retries_left = 3  # Retry mechanism for stale elements
+                while retries_left > 0:
                     try:
+                        # Extract the article data
                         title_element = article.find_element(
                             By.CSS_SELECTOR, "a.text-color-charcoal-900"
                         )
@@ -289,16 +291,21 @@ def full_crawl_articles(topic):
                             )
                             current_batch = new_batch
                             articles_data = []
-
+                        
                         break  # Exit retry loop if successful
                     except StaleElementReferenceException:
-                        retry_article += 1
+                        retries_left -= 1
                         print(
-                            f"Retrying stale article: Attempt {retry_article}"
+                            f"Stale element encountered. Retrying {3 - retries_left}/3."
                         )
-                        time.sleep(random.uniform(1, 2))
+                        time.sleep(random.uniform(1, 2))  # Short wait before retrying
+                        # Refresh article reference
+                        data_div = driver.find_element(
+                            By.CSS_SELECTOR, 'div[data-module-name="timeline-module"]'
+                        ).find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
+                        articles = data_div[previous_news : current_news]
                     except Exception as e:
-                        print(f"Error processing article: {e}")
+                        print(f"Error extracting data for an article: {e}")
                         break
 
             # Click the "More stories" button to load more articles
@@ -308,7 +315,7 @@ def full_crawl_articles(topic):
                     "button.bg-white.hover\\:opacity-80.cursor-pointer",
                 )
                 ActionChains(driver).move_to_element(more_button).click().perform()
-                print("Clicked 'More stories' button successfully.")
+                # print("Clicked 'More stories' button successfully.")
                 retry_count = 0
                 previous_news = current_news
             except NoSuchElementException:
@@ -339,6 +346,7 @@ def full_crawl_articles(topic):
     # Ensure the driver quits properly
     driver.quit()
     print("Crawling completed.")
+
     
 # Run the crawling process
 if __name__ == "__main__":
