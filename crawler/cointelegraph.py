@@ -195,12 +195,10 @@ def full_crawl_articles(tag):
         not_crawled = False
     else:
         not_crawled = True
-    article_num = 0
     articles_data = []
     retries = 3
     retries_count =1 
     previous_news = 0
-    page_size = 15
     while True:
         # Get all the articles on the current page
         data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-card-inline__content")
@@ -246,7 +244,6 @@ def full_crawl_articles(tag):
             driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
             print(f"Process from {previous_news} to {current_news}")
             previous_news = current_news
-            article_num += page_size
             retries_count = 0
         except IndexError:
             print(f"Get Error in load more news retries {retries_count}/{retries}")
