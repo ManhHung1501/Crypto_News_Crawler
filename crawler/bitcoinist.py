@@ -154,6 +154,8 @@ def full_crawl_articles():
         # Find all the articles within the container
         data_div = container.find_elements(By.CSS_SELECTOR, "article.jeg_post")
         current_news = len(data_div)
+        if current_news == previous_news:
+            time.sleep(3)
         articles = data_div[previous_news: current_news]
         print(f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:
@@ -201,13 +203,6 @@ def full_crawl_articles():
                 print("No more articles to load or button not clickable.")
                 break
                 
-            # Wait a bit to allow all new articles to load
-            time.sleep(2)
-            driver.save_screenshot(f'{project_dir}/image/te.png')
-            
-
-            if current_news == previous_news:
-                time.sleep(3)
             
         except NoSuchElementException as e:
             print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
