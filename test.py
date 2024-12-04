@@ -9,7 +9,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, project_dir
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -181,26 +181,40 @@ def full_crawl_articles():
                 print(f"Error extracting data for an article: {e}")
             
         
-        # Click the "More stories" button to load more articles
-        try:
-            load_more_button = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div.jeg_block_loadmore a"))
-            )
-
-            # Check if the button is visible and clickable
-            if load_more_button.is_displayed():
-                driver.save_screenshot('image/te1.png')
-                print("Clicking 'Load More' button...")
-                ActionChains(driver).move_to_element(load_more_button).click().perform()
-                
-                # Wait for the articles to load (you can adjust the time based on your site)
+            # Click the "More stories" button to load more articles
+            try:
+                # Wait for the preloader to disappear
                 WebDriverWait(driver, 10).until(
-                    EC.invisibility_of_element_located((By.CSS_SELECTOR, ".module-preloader"))
+                    EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.module-preloader"))
                 )
-                
-                # Wait a bit to allow all new articles to load
-                time.sleep(2)
-                driver.save_screenshot('image/te.png')
+
+                # Handle potential overlay or popup
+                try:
+                    overlay = WebDriverWait(driver, 5).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "div.slidedown-body-message"))
+                    )
+                    print("Overlay detected. Attempting to close...")
+                    close_button = overlay.find_element(By.CSS_SELECTOR, "button[class*='dismiss-button']")
+                    close_button.click()
+                    print("Overlay dismissed.")
+                except TimeoutException:
+                    print("No overlay detected. Proceeding...")
+
+                # Locate the 'Load More' button
+                load_more_button = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "div.jeg_block_loadmore a"))
+                )
+
+                # Scroll into view and click the button
+                driver.execute_script("arguments[0].scrollIntoView(true);", load_more_button)
+
+                # Use JavaScript click to bypass interception
+                driver.execute_script("arguments[0].click();", load_more_button)
+                print("'Load More' button clicked successfully.")
+                    
+                    # Wait a bit to allow all new articles to load
+                    time.sleep(2)
+                    driver.save_screenshot(f'{project_dir}/image/te.png')
             
             else:
                 print("No more articles to load.")

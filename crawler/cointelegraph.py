@@ -199,11 +199,13 @@ def full_crawl_articles(tag):
     articles_data = []
     retries = 3
     retries_count =1 
+    previous_news = 0
     page_size = 15
     while True:
         # Get all the articles on the current page
         data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-card-inline__content")
-        articles = data_div[article_num: article_num+page_size]
+        current_news = len(data_div)
+        articles = data_div[previous_news: current_news]
         for article in articles:
             try:
                 # Extract title
@@ -239,10 +241,11 @@ def full_crawl_articles(tag):
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
         
-        current_news = len(data_div)
+        
         try:
             driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
-            print(f"Process from {article_num} to {current_news}")
+            print(f"Process from {previous_news} to {current_news}")
+            previous_news = current_news
             article_num += page_size
             retries_count = 0
         except IndexError:
@@ -252,10 +255,16 @@ def full_crawl_articles(tag):
                 articles_data = get_detail_article(articles_data)
                 object_key = f'{prefix}{current_news}.json'
                 upload_json_to_minio(json_data=articles_data,object_key=object_key)
+                articles_data = []
                 driver.quit()
                 break
         # Wait for new articles to load
         time.sleep(random.uniform(2, 4))
+        
+    if articles_data:
+        articles_data = get_detail_article(articles_data)
+        object_key = f'{prefix}{current_news}.json'
+        upload_json_to_minio(json_data=articles_data,object_key=object_key)
     driver.quit()
 
 # Run the crawling process
