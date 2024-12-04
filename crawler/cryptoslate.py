@@ -1,4 +1,5 @@
 import time, random, requests
+from requests.exceptions import Timeout
 from datetime import datetime, date
 from selenium.webdriver.common.by import By
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
@@ -92,7 +93,17 @@ def get_detail_article(articles):
         content = "No content"
         url = article['url']
         try:
-            response = requests.get(url, timeout=10)
+            # Make the HTTP request
+            try:
+                response = requests.get(url, timeout=15)
+                response.raise_for_status() 
+            except Timeout:
+                print(f"timed out. Sleep for {url}...")
+                time.sleep(10)
+            except requests.exceptions.RequestException as e:
+                print(f"Request for {url} failed: {e}")
+                continue
+                
             soup = BeautifulSoup(response.content, "html.parser")
             post_header_div = soup.select_one(".post-header.article")
             author_element = soup.select_one(".author-info")

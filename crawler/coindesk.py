@@ -7,7 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
+from selenium.common.exceptions import (NoSuchElementException, 
+            ElementClickInterceptedException, TimeoutException, 
+            StaleElementReferenceException)
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
 from crawler_utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
 from crawler_utils.chrome_driver_utils import setup_driver
@@ -107,16 +109,15 @@ def get_detail_article( articles):
         content = "No content"
         try:
             # Make the HTTP request
-            for attempt in range(3):
-                try:
-                    response = requests.get(url, timeout=15)
-                    response.raise_for_status() 
-                except Timeout:
-                    print(f"Attempt {attempt + 1} timed out. Retrying for {url}...")
-                    time.sleep(10)
-                except requests.exceptions.RequestException as e:
-                    print(f"Request for {url} failed: {e}")
-                    continue
+            try:
+                response = requests.get(url, timeout=15)
+                response.raise_for_status() 
+            except Timeout:
+                print(f"timed out for {url}...")
+                time.sleep(10)
+            except requests.exceptions.RequestException as e:
+                print(f"Request for {url} failed: {e}")
+                continue
 
             # Parse the HTML with BeautifulSoup
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -272,7 +273,7 @@ def full_crawl_articles(topic):
                     articles_data = []
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
-            
+                time.sleep(3)
         
         # Click the "More stories" button to load more articles
         try:
@@ -293,6 +294,7 @@ def full_crawl_articles(topic):
                 upload_json_to_minio(json_data=articles_data,object_key=object_key)
                 driver.quit()
                 break
+        
         except Exception as e:
             print("Error in click more: ", e)
             driver.quit()

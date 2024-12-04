@@ -9,8 +9,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
-from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
+from crawler_utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled
+from crawler_utils.chrome_driver_utils import setup_driver
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
 # Function to convert relative time to a datetime object
@@ -131,7 +131,6 @@ def full_crawl_articles():
 
     # Wait for the articles to load initially
     handle_cookie_consent(driver)
-    wait_for_page_load(driver, 'div.jeg_posts')
 
     not_crawled = last_crawled_id is None
     article_num = 0
@@ -142,17 +141,14 @@ def full_crawl_articles():
     previous_news = 0 
     while True:
         # Get all the articles on the current page
-        container = driver.find_element(By.CSS_SELECTOR, "div.jeg_posts")
-
-        # Find all the articles within the container
-        data_div = container.find_elements(By.CSS_SELECTOR, "article.jeg_post")
+        data_div = driver.find_element(By.CSS_SELECTOR, 'div.archive-posts').find_elements(By.CSS_SELECTOR, "article.jeg_post")
         current_news = len(data_div)
         articles = data_div[article_num: article_num+ page_size]
         print(f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:
             try:
                 # Extract title
-                link_element = article.find_element(By.CSS_SELECTOR, ".jeg_postblock_content .jeg_post_title a")
+                link_element = article.find_element(By.CSS_SELECTOR, "h3.jeg_post_title > a")
                 article_url = link_element.get_attribute("href")
                 article_id = generate_url_hash(article_url)
                 # Skip if the article URL has already been processed
@@ -169,6 +165,7 @@ def full_crawl_articles():
                         "url": article_url,
                         "source": "bitcoinist.com"
                     })
+                    print(articles_data)
                 if len(articles_data) == batch_size:
                     articles_data = get_detail_article(articles=articles_data)
                     new_batch = current_batch + batch_size
@@ -183,34 +180,14 @@ def full_crawl_articles():
         
         # Click the "More stories" button to load more articles
         try:
-            load_more_button = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "div.jeg_block_loadmore a"))
-            )
-
-            # Check if the button is visible and clickable
-            if load_more_button.is_displayed():
-                driver.save_screenshot('te1.png')
-                print("Clicking 'Load More' button...")
-                ActionChains(driver).move_to_element(load_more_button).click().perform()
-                
-                # Wait for the articles to load (you can adjust the time based on your site)
-                WebDriverWait(driver, 10).until(
-                    EC.invisibility_of_element_located((By.CSS_SELECTOR, ".module-preloader"))
-                )
-                driver.save_screenshot('te.png')
-                # Wait a bit to allow all new articles to load
-                time.sleep(2)
-            else:
-                print("No more articles to load.")
-                break  
-
+            load_more_button = driver.find_element(By.CSS_SELECTOR, "div.jeg_block_loadmore > a")
+            ActionChains(driver).move_to_element(load_more_button).click().perform()
             if  current_news == previous_news:
                 time.sleep(3)
             else:
                 previous_news = current_news
                 article_num += page_size
                 retries_count = 0
-
         except NoSuchElementException as e:
             print(f"No 'More stories' button found or could not click on {retries_count}/{retries}")
             retries_count +=1
