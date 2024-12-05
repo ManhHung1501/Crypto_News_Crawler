@@ -9,6 +9,5 @@ last_crawled/
 
 .env
 test.py
-main.py
 *.png
 
