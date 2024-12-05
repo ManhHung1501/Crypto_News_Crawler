@@ -42,6 +42,10 @@ with DAG(
                                 python_callable=newsbtc.full_crawl_articles,
                                 provide_context=True
                                 )
+    crawl_theblockcrypto_task = PythonOperator(task_id='crawl_theblockcrypto',
+                                python_callable=theblockcrypto.full_crawl_articles,
+                                provide_context=True
+                                )
     with TaskGroup(group_id=f"Group_Crawler_NewsBitcoin") as task_group_API_android:
         previous_task = None
         for category in NewsBitcoin.categories:
