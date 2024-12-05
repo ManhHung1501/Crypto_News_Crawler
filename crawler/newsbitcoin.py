@@ -181,18 +181,10 @@ def full_crawl_articles(category):
                     EC.element_to_be_clickable((By.XPATH, '//a[contains(@href, "page") and contains(text(), ">")]'))
                 )
 
-                # Scroll to the element
-                driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
-
-                # Try clicking the button (use JS if necessary)
-                try:
-                    next_button.click()
-                except Exception:
-                    print("Click intercepted, using JavaScript click")
-                    driver.execute_script("arguments[0].click();", next_button)
+               
+                driver.execute_script("arguments[0].click();", next_button)
 
                 print(f"Scraping page: {driver.current_url}")
-                time.sleep(2)
                 
             
         except NoSuchElementException as e:
