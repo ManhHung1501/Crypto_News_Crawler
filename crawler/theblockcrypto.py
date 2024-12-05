@@ -60,7 +60,6 @@ def get_detail_article(articles):
         content = "No content"
         try:
             driver.get(url)
-            time.sleep(random.uniform(2, 4))
             wait_for_page_load(driver, "section.article")
             
             try:
