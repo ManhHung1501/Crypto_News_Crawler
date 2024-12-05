@@ -104,7 +104,7 @@ def full_crawl_articles():
     
     not_crawled = last_crawled_id is None
     articles_data = []
-    batch_size = 20
+    batch_size = 100
     while True:
         articles = driver.find_element(By.CSS_SELECTOR, "div.articles").find_elements(By.CSS_SELECTOR, "div.articleCard__content")
         for article in articles:
