@@ -81,7 +81,7 @@ def full_crawl_articles():
         prefix=prefix
     )
     
-    batch_size = 1000
+    batch_size = 100
     not_crawled = last_crawled_id is None
     articles_data = []
     page = 1
