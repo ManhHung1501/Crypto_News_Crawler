@@ -11,3 +11,4 @@ last_crawled/
 test.py
 *.png
 
+*.tar
