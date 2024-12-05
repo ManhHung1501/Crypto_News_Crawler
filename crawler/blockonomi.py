@@ -50,7 +50,7 @@ def get_detail_article(articles):
                 except requests.exceptions.RequestException as e:
                     print(f'Retrying ...')
                     print(f"Request for {url} failed: {e}")
-                    
+                    time.sleep(5)
                 
             soup = BeautifulSoup(response.content, "html.parser")
             
@@ -84,6 +84,7 @@ def full_crawl_articles():
     batch_size = 100
     not_crawled = last_crawled_id is None
     articles_data = []
+    crawled_id = set()
     page = 1
     total_page = get_total_page() 
 
@@ -111,11 +112,15 @@ def full_crawl_articles():
                     article_url = title_element.select_one('a')['href']
                     article_id = generate_url_hash(article_url)
 
+                    if article_id in crawled_id:
+                        continue
+
                     # Skip already crawled articles
                     if not not_crawled and article_id == last_crawled_id:
                         not_crawled = True
                         continue
-                    if not_crawled:                 
+        
+                    if not_crawled:      
                         # Add the article data to the list
                         articles_data.append({
                             "id": article_id,
@@ -124,7 +129,8 @@ def full_crawl_articles():
                             "url": article_url,
                             "source": "blockonomi.com"
                         })
-                    
+                        crawled_id.add(article_id)
+
                     # Process and upload the batch
                     if len(articles_data) == batch_size:
                         articles_data = get_detail_article(articles=articles_data)  # Adjust to parse publish dates
@@ -140,7 +146,7 @@ def full_crawl_articles():
             page += 1 
         except requests.RequestException as e:
             print(f"Error fetching page {page}: {e}")
-        
+            time.sleep(10)
 
     # Final upload if there are remaining articles
     if articles_data:
