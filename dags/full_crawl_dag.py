@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
-from crawler import coindesk,cointelegraph,cryptoslate, bitcoinist, newsbitcoin, theblockcrypto, blockonomi
+from crawler import coindesk,cointelegraph,cryptoslate, bitcoinist, newsbitcoin, theblockcrypto, blockonomi, newsbtc
 from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin
 
 
@@ -36,6 +36,10 @@ with DAG(
                                 )
     crawl_blockonomi_task = PythonOperator(task_id='crawl_blockonomi',
                                 python_callable=blockonomi.full_crawl_articles,
+                                provide_context=True
+                                )
+    crawl_newsbtc_task = PythonOperator(task_id='crawl_newsbtc',
+                                python_callable=newsbtc.full_crawl_articles,
                                 provide_context=True
                                 )
     with TaskGroup(group_id=f"Group_Crawler_NewsBitcoin") as task_group_API_android:
