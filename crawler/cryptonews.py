@@ -138,7 +138,7 @@ def get_detail_article(df):
 
 
 def full_crawl_articles():
-    df = pd.read_csv('crypto_news.csv')
+    df = pd.read_csv(f'{project_dir}/crypto_news.csv')
     df = df[['url']]
     get_detail_article(df)
     
