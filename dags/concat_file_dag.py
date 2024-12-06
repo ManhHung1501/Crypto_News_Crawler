@@ -58,7 +58,7 @@ with DAG(
                                                 conn_id='spark',
                                                 application=f"{project_dir}/crawler_processing/uinion_json.py",
                                                 application_args=[
-                                                    f"web_crawler/coindesk/{topic}",
+                                                    f"web_crawler/coindesk/{topic}/*.json",
                                                     "result/crypto_news.json"
                                                 ],
                                                 conf=spark_conf,
@@ -76,7 +76,7 @@ with DAG(
                                                 conn_id='spark',
                                                 application=f"{project_dir}/crawler_processing/uinion_json.py",
                                                 application_args=[
-                                                    f"web_crawler/cointelegraph/{tag}",
+                                                    f"web_crawler/cointelegraph/{tag}/*.json",
                                                     "result/crypto_news.json"
                                                 ],
                                                 conf=spark_conf,

@@ -10,5 +10,5 @@ last_crawled/
 .env
 test.py
 *.png
-
+*.csv
 *.tar
