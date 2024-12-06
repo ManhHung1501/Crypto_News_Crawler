@@ -85,7 +85,7 @@ def get_source(url):
 # Get publish timestamp
 def get_detail_article(df):
     articles_data = []
-    batch_size = 1000
+    batch_size = 100
     current_batch = 0
     prefix = f'web_crawler/cryptonews/cryptonews_initial_batch_'
     for _, row in df.iterrows():
@@ -129,7 +129,7 @@ def get_detail_article(df):
             object_key = f'{prefix}{new_batch}.json'
             upload_json_to_minio(json_data=articles_data,object_key=object_key)
         driver.quit()
-        break
+
     if articles_data:
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
