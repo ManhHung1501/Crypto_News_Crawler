@@ -196,6 +196,7 @@ def full_crawl_articles(tag):
     else:
         not_crawled = True
     articles_data = []
+    crawled_id = set()
     retries = 3
     retries_count =1 
     previous_news = 0
@@ -210,6 +211,10 @@ def full_crawl_articles(tag):
                 title_element = article.find_element(By.CSS_SELECTOR, "a.post-card-inline__title-link")
                 article_url = title_element.get_attribute("href")
                 article_id = generate_url_hash(article_url)
+
+                if article_id in crawled_id:
+                    continue
+
                 # Skip if the article URL has already been processed
                 if not not_crawled and article_id == last_crawled_id:
                     not_crawled = True
@@ -227,7 +232,7 @@ def full_crawl_articles(tag):
                         "url": article_url,
                         "source": "cointelegraph.com"
                     })
-                
+                    crawled_id.add(article_id)
                 if len(articles_data) == batch_size:
                     articles_data = get_detail_article(articles_data)
                     new_batch = current_batch + batch_size
@@ -236,6 +241,7 @@ def full_crawl_articles(tag):
                     
                     current_batch = new_batch
                     articles_data = []
+                    crawled_id = set()
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
         
@@ -249,18 +255,13 @@ def full_crawl_articles(tag):
             print(f"Get Error in load more news retries {retries_count}/{retries}")
             retries_count+=1
             if retries_count > retries:
-                articles_data = get_detail_article(articles_data)
-                object_key = f'{prefix}{current_news}.json'
-                upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                articles_data = []
-                driver.quit()
                 break
         # Wait for new articles to load
         time.sleep(random.uniform(2, 4))
         
     if articles_data:
         articles_data = get_detail_article(articles_data)
-        object_key = f'{prefix}{current_news}.json'
+        object_key = f'{prefix}{current_batch+len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
     driver.quit()
 
