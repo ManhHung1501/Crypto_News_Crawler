@@ -15,49 +15,28 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-def convert_relative_time_to_datetime(relative_time_str):
-    relative_time_str = relative_time_str.lower().strip()
+def get_total_page():
+    driver = setup_driver()  # Replace with your WebDriver
+    driver.get("https://cryptonews.com/news/")  # Replace with the actual URL
 
-    # Current time
-    current_time = datetime.now()
-
-    # Regular expression to match different time units (second, minute, hour, day, week, month, year)
-    time_patterns = {
-        'second': r"(\d+)\s*(second|seconds)\s*ago",
-        'minute': r"(\d+)\s*(minute|minutes)\s*ago",
-        'hour': r"(\d+)\s*(hour|hours)\s*ago",
-        'day': r"(\d+)\s*(day|days)\s*ago",
-        'week': r"(\d+)\s*(week|weeks)\s*ago",
-        'month': r"(\d+)\s*(month|months)\s*ago",
-        'year': r"(\d+)\s*(year|years)\s*ago",
-    }
-
-    # Search for matches and apply the corresponding relativedelta
-    for unit, pattern in time_patterns.items():
-        match = re.search(pattern, relative_time_str, re.IGNORECASE)
-        if match:
-            amount = int(match.group(1))
-            if unit == 'second':
-                calculated_time = current_time - relativedelta(seconds=amount)
-            elif unit == 'minute':
-                calculated_time = current_time - relativedelta(minutes=amount)
-            elif unit == 'hour':
-                calculated_time = current_time - relativedelta(hours=amount)
-            elif unit == 'day':
-                calculated_time = current_time - relativedelta(days=amount)
-            elif unit == 'week':
-                calculated_time = current_time - relativedelta(weeks=amount)
-            elif unit == 'month':
-                calculated_time = current_time - relativedelta(months=amount)
-            elif unit == 'year':
-                calculated_time = current_time - relativedelta(years=amount)
-            
-            # Return the result in 'yyyy-mm-dd hh:mm:ss' format
-            return calculated_time.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # If no match found, print error and return default value
-    print(f"Cannot parse date: {relative_time_str}")
-    return "1970-01-01 00:00:00"
+    try:
+        # Wait for the pagination section to load
+        wait = WebDriverWait(driver, 10)
+        pagination = wait.until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, '.pagination_main'))
+        )
+        
+        # Locate the last page number element
+        last_page_element = pagination.find_element(By.XPATH, "(//a[@class='page-numbers'][not(contains(@class, 'next'))])[last()]")
+        
+        # Extract the total number of pages
+        total_pages = int(last_page_element.text.replace(",", ""))
+        print(f"Total pages: {total_pages}")
+        return total_pages
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        driver.quit()
 
 def handle_cookie_consent(driver):
     """
@@ -75,12 +54,6 @@ def handle_cookie_consent(driver):
         print("Could not click the cookie consent button.")
     except TimeoutException:
         print("No cookies prompt displayed.")
-
-def get_source(url):
-    parsed_url = urlparse(url)
-    # Extract netloc and remove 'www.' if present
-    domain = parsed_url.netloc.replace('www.', '')
-    return domain
 
 # Get publish timestamp
 def get_detail_article(articles):
@@ -121,72 +94,64 @@ def get_detail_article(articles):
 
 
 def full_crawl_articles():
-    driver = setup_driver()
-    
     minio_client = connect_minio()
- 
     prefix = f'web_crawler/cryptonews/cryptonews_initial_batch_'
     last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
-    URL = f"https://cryptonews.com/news/"
-    print(f"Crawling URL: {URL}")
 
-    # Open the URL
-    driver.get(URL)
-
-    # Wait for the articles to load initially
-    wait_for_page_load(driver,'.archive-template-latest-news__wrap')
-    handle_cookie_consent(driver)
     not_crawled = last_crawled_id is None
     articles_data = []
     batch_size = 100
-    while True:
-        articles = driver.find_elements(By.CSS_SELECTOR, "div.archive-template-latest-news__wrap")
-        for article in articles:
-            try:
-                article_element = article.find_element(By.CSS_SELECTOR, '.archive-template-latest-news')
-                article_url = article_element.get_attribute("href")
-                article_id = generate_url_hash(article_url)
-                # Skip if the article URL has already been processed
-                if not not_crawled and article_id == last_crawled_id:
-                    not_crawled = True
-                    continue
-                if not_crawled:
-                    # Add the article data to the list
-                    articles_data.append({
-                        "id": article_id,
-                        "title": article_element.find_element(By.CSS_SELECTOR, '.archive-template-latest-news__title').text,
-                        "url": article_url,
-                        "source": "cryptonews.com"
-                    })
-                if len(articles_data) == batch_size:
-                    articles_data = get_detail_article(articles=articles_data)
-                    new_batch = current_batch + batch_size
-                    object_key = f'{prefix}{new_batch}.json'
-                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                    current_batch = new_batch
-                    articles_data = []
-            except Exception as e:
-                print(f"Error extracting data for an article: {e}")
-            
-        
+    page = 1
+    total_page = get_total_page()
+    while page <= total_page:
+        driver = setup_driver()
+        if page == 1:
+            URL = f"https://cryptonews.com/news/"
+        else:
+            URL = f"https://cryptonews.com/news/page/{page}/"
+
+        print(f"Crawling URL: {URL}")
         try:
-            # Find the "Next" button
-            next_button = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.next.page-numbers'))
-            )
-            next_button.click()
-            print(f"crawling on: {driver.current_url}")
-        except NoSuchElementException:
-            # Handle the case where the "Next" button is not present
-            print("No 'Next' button found. End of pages.")
-            break
-        except Exception:
-            # Handle the case where the element is visible but cannot be clicked
-            print("Unable to click the 'Next' button. It might be disabled.")
-            break
-                
-        # Wait for new articles to load
-        time.sleep(random.uniform(2, 4))
+            # Open the URL
+            driver.get(URL)
+            wait_for_page_load(driver,'.archive-template-latest-news__wrap')
+
+            articles = driver.find_elements(By.CSS_SELECTOR, "div.archive-template-latest-news__wrap")
+            for article in articles:
+                try:
+                    article_element = article.find_element(By.CSS_SELECTOR, '.archive-template-latest-news')
+                    article_url = article_element.get_attribute("href")
+                    article_id = generate_url_hash(article_url)
+                    # Skip if the article URL has already been processed
+                    if not not_crawled and article_id == last_crawled_id:
+                        not_crawled = True
+                        continue
+                    if not_crawled:
+                        # Add the article data to the list
+                        articles_data.append({
+                            "id": article_id,
+                            "title": article_element.find_element(By.CSS_SELECTOR, '.archive-template-latest-news__title').text,
+                            "url": article_url,
+                            "source": "cryptonews.com"
+                        })
+                    if len(articles_data) == batch_size:
+                        articles_data = get_detail_article(articles=articles_data)
+                        new_batch = current_batch + batch_size
+                        object_key = f'{prefix}{new_batch}.json'
+                        upload_json_to_minio(json_data=articles_data,object_key=object_key)
+                        current_batch = new_batch
+                        articles_data = []
+                except Exception as e:
+                    print(f"Error extracting data for an article: {e}")
+
+            
+            print(f'Complete crawled {len(articles)} from page {page}')
+            page += 1
+
+        except Exception as e:
+            print(f"Error in get data of page {page}: ", e)
+            time.sleep(10)
+        driver.quit()
 
     if articles_data:
         articles_data = get_detail_article(articles=articles_data)
