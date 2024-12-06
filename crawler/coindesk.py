@@ -109,15 +109,17 @@ def get_detail_article( articles):
         content = "No content"
         try:
             # Make the HTTP request
-            try:
-                response = requests.get(url, timeout=10)
-                response.raise_for_status() 
-            except Timeout:
-                print(f"timed out for {url}...")
-                time.sleep(10)
-            except requests.exceptions.RequestException as e:
-                print(f"Request for {url} failed: {e}")
-                continue
+            for _ in range(3):
+                try:
+                    response = requests.get(url, timeout=10)
+                    response.raise_for_status() 
+                    break
+                except Timeout:
+                    print(f"timed out for {url}, retrying...")
+                    time.sleep(5)
+                except requests.exceptions.RequestException as e:
+                    print(f"Request for {url} failed, retrying... : {e}")
+                    time.sleep(5)
 
             # Parse the HTML with BeautifulSoup
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -233,6 +235,7 @@ def full_crawl_articles(topic):
 
     not_crawled = last_crawled_id is None
     articles_data = []
+    crawled_id = set()
     previous_news = 0
     while True:
         try:
@@ -259,6 +262,9 @@ def full_crawl_articles(topic):
                         article_url = title_element.get_attribute("href")
                         article_id = generate_url_hash(article_url)
 
+                        if article_id in crawled_id:
+                            continue
+
                         # Skip if the article URL has already been processed
                         if not not_crawled and article_id == last_crawled_id:
                             not_crawled = True
@@ -275,7 +281,7 @@ def full_crawl_articles(topic):
                                     "source": "coindesk.com",
                                 }
                             )
-
+                            crawled_id.add(article_id)
                         # Upload in batches
                         if len(articles_data) == batch_size:
                             articles_data = get_detail_article(
@@ -288,7 +294,7 @@ def full_crawl_articles(topic):
                             )
                             current_batch = new_batch
                             articles_data = []
-                        
+                            crawled_id = set()
                         break  # Exit retry loop if successful
                     except StaleElementReferenceException:
                         retries_left -= 1
@@ -313,12 +319,13 @@ def full_crawl_articles(topic):
                 )
                 ActionChains(driver).move_to_element(more_button).click().perform()
                 # print("Clicked 'More stories' button successfully.")
-                retry_count = 0
+
                 previous_news = current_news
             except NoSuchElementException:
                 print(
                     f"No 'More stories' button found"
                 )
+                break
 
             except Exception as e:
                 print(f"Error clicking 'More stories' button: {e}")
@@ -334,7 +341,7 @@ def full_crawl_articles(topic):
     # Upload remaining data
     if articles_data:
         articles_data = get_detail_article(articles=articles_data)
-        object_key = f"{prefix}{current_news}.json"
+        object_key = f"{prefix}{current_batch + len(articles_data)}.json"
         upload_json_to_minio(json_data=articles_data, object_key=object_key)
 
     # Ensure the driver quits properly
