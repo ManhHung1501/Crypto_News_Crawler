@@ -66,7 +66,7 @@ def handle_cookie_consent(driver):
     try:
         # Wait for the "Allow all cookies" button to be visible
         wait = WebDriverWait(driver, 10, poll_frequency=0.5)  
-        accept_cookies = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@class="cookieConsent__Button", @aria-label="Confirm all"]')))
+        accept_cookies = wait.until(EC.element_to_be_clickable((By.XPATH, '//button[@aria-label="Confirm all"]')))
         accept_cookies.click()
         print("Cookie consent accepted: 'Allow all cookies' button clicked.")
     except NoSuchElementException:
@@ -83,64 +83,117 @@ def get_source(url):
     return domain
 
 # Get publish timestamp
-def get_detail_article(df):
-    articles_data = []
-    batch_size = 100
-    current_batch = 0
-    prefix = f'web_crawler/cryptonews/cryptonews_initial_batch_'
-    for _, row in df.iterrows():
+def get_detail_article(articles):
+    for article in articles:
         driver = setup_driver()
-        temp_dict = {}
-        url =row['url']
-        temp_dict['id']= generate_url_hash(url)
-        temp_dict['url'] = url
-        temp_dict['source'] = 'cryptonews.com'
+        url = article['url']
+        content = "No content"
+        published_at = "1970-01-01 00:00:00"
         try:
             driver.get(url)
             wait_for_page_load(driver, 'div.article-single__content.category_contents_details')
-            content = "No content"
-
-            # content                
-            article_content_element = driver.find_element(By.CSS_SELECTOR,'div.article-single__content.category_contents_details')
-
-            title = article_content_element.find_element(By.CSS_SELECTOR, "h1.mb-10").text.strip()
-            temp_dict['title'] = title
-
+            
             meta_tag = driver.find_element(By.CSS_SELECTOR, 'meta[property="article:published_time"]')
             published_time = meta_tag.get_attribute('content')  # Extract the content attribute
 
-            temp_dict['published_at'] = datetime.fromisoformat(published_time).strftime('%Y-%m-%d %H:%M:%S') 
-
+            published_at = datetime.fromisoformat(published_time).strftime('%Y-%m-%d %H:%M:%S') 
+            # content                
+            article_content_element = driver.find_element(By.CSS_SELECTOR,'div.article-single__content.category_contents_details')
             article_content_div = BeautifulSoup(article_content_element.get_attribute("innerHTML"),  'html.parser')
             if article_content_div:
                 unwanteds_card = ".mb-10, .image, .twitter-tweet, .single-post-new__tags, .single-post-new__last-updated-mobile, .single-post-new__author-top, .single-post-new__accordion, .dslot, .news-tab-content, .follow-button, .news-tab"
                 for unwanted in article_content_div.select(unwanteds_card):
                     unwanted.decompose()
                 content = ' '.join(article_content_div.stripped_strings)
-            temp_dict['content'] = content
+            driver.quit()
         except Exception as e:
             print(f"Error get data for URL {url}: {e}")
             time.sleep(2)
 
-        articles_data.append(temp_dict)
-        print(f"complete get data for {url}")
-        if len(articles_data) == batch_size:
-            new_batch = current_batch + batch_size
-            object_key = f'{prefix}{new_batch}.json'
-            upload_json_to_minio(json_data=articles_data,object_key=object_key)
-        driver.quit()
+        if content == "No content":
+            print(f'Failed to get content for {url}')
+        if published_at == "1970-01-01 00:00:00":
+            print(f'Failed to get publish date for {url}')
 
-    if articles_data:
-        object_key = f'{prefix}{current_batch + len(articles_data)}.json'
-        upload_json_to_minio(json_data=articles_data,object_key=object_key)
-    
-    return df
+        article['content'] = content
+        article['published_at'] =published_at
+    return articles
 
 
 def full_crawl_articles():
-    df = pd.read_csv(f'{project_dir}/crypto_news.csv')
-    df = df[['url']]
-    get_detail_article(df)
+    driver = setup_driver()
+    
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/cryptonews/cryptonews_initial_batch_'
+    last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
+    URL = f"https://cryptonews.com/news/"
+    print(f"Crawling URL: {URL}")
+
+    # Open the URL
+    driver.get(URL)
+
+    # Wait for the articles to load initially
+    wait_for_page_load(driver,'.archive-template-latest-news__wrap')
+    handle_cookie_consent(driver)
+    not_crawled = last_crawled_id is None
+    articles_data = []
+    batch_size = 100
+    while True:
+        articles = driver.find_elements(By.CSS_SELECTOR, "div.archive-template-latest-news__wrap")
+        for article in articles:
+            try:
+                article_element = article.find_element(By.CSS_SELECTOR, '.archive-template-latest-news')
+                article_url = article_element.get_attribute("href")
+                article_id = generate_url_hash(article_url)
+                # Skip if the article URL has already been processed
+                if not not_crawled and article_id == last_crawled_id:
+                    not_crawled = True
+                    continue
+                if not_crawled:
+                    # Add the article data to the list
+                    articles_data.append({
+                        "id": article_id,
+                        "title": article_element.find_element(By.CSS_SELECTOR, '.archive-template-latest-news__title').text,
+                        "url": article_url,
+                        "source": "cryptonews.com"
+                    })
+                if len(articles_data) == batch_size:
+                    articles_data = get_detail_article(articles=articles_data)
+                    new_batch = current_batch + batch_size
+                    object_key = f'{prefix}{new_batch}.json'
+                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
+                    current_batch = new_batch
+                    articles_data = []
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+            
+        
+        try:
+            # Find the "Next" button
+            next_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, 'a.next.page-numbers'))
+            )
+            next_button.click()
+            print(f"crawling on: {driver.current_url}")
+        except NoSuchElementException:
+            # Handle the case where the "Next" button is not present
+            print("No 'Next' button found. End of pages.")
+            break
+        except Exception:
+            # Handle the case where the element is visible but cannot be clicked
+            print("Unable to click the 'Next' button. It might be disabled.")
+            break
+                
+        # Wait for new articles to load
+        time.sleep(random.uniform(2, 4))
+
+    if articles_data:
+        articles_data = get_detail_article(articles=articles_data)
+        object_key = f'{prefix}{current_batch + len(articles_data)}.json'
+        upload_json_to_minio(json_data=articles_data,object_key=object_key)
+
+    driver.quit()
     
 # Run the crawling process
 if __name__ == "__main__":
