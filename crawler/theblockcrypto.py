@@ -91,7 +91,7 @@ def full_crawl_articles():
  
     prefix = f'web_crawler/theblockcrypto/theblockcrypto_initial_batch_'
     last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
-    URL = f"https://www.theblock.co/latest"
+    URL = f"https://www.theblock.co/latest?start=20000"
     print(f"Crawling URL: {URL}")
 
     # Open the URL
