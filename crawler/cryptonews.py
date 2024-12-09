@@ -101,7 +101,7 @@ def full_crawl_articles():
     not_crawled = last_crawled_id is None
     articles_data = []
     batch_size = 100
-    page = 94
+    page = 1
     total_page = get_total_page()
     while page <= total_page:
         driver = setup_driver()
