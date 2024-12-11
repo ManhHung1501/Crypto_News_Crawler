@@ -9,6 +9,7 @@ last_crawled/
 
 .env
 test.py
+a.py
 *.png
 *.csv
 *.tar
