@@ -90,7 +90,7 @@ def full_crawl_articles():
     # Open the URL
     driver.get(URL)
     handle_cookie_consent(driver)
-    driver.save_screenshot('a.png')
+
     # Wait for the articles to load initially
     wait_for_page_load(driver,"div.contentList")
     crawled_id = set()
