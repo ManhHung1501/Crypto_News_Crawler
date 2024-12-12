@@ -102,10 +102,14 @@ def full_crawl_articles():
     articles_data = []
     batch_size = 100
     previous_news = 0
+    count = 0
     while True:
         data_div = driver.find_elements(By.CSS_SELECTOR, "main a.linkbox__overlay")
         current_news = (len(data_div))
         if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
             time.sleep(3)
         articles = data_div[previous_news:current_news]
         print( f"Crawling news from {previous_news} to {current_news} news")
