@@ -167,7 +167,7 @@ def full_crawl_articles():
                     crawled_id=set()
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
-                time.sleep(200)
+       
             
         
         # Click the "More stories" button to load more articles
