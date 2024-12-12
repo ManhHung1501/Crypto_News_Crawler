@@ -101,7 +101,7 @@ def full_crawl_articles():
     articles_data = []
     batch_size = 100
     page = 1 
-    total_page = 2#get_total_page()
+    total_page = get_total_page()
     while page <= total_page:
         driver = setup_driver()
         URL = f"https://beincrypto.com/news/page/{page}/"
@@ -112,7 +112,6 @@ def full_crawl_articles():
             wait_for_page_load(driver,"div.content")
             articles = driver.find_element(By.CSS_SELECTOR, "div.content").find_element(By.CSS_SELECTOR, "div.flex.flex-wrap").find_elements(By.XPATH,'//div[@data-el="bic-c-news-big"]')
 
-            print( f"Crawling on {driver.current_url}")
             for article in articles:
                 try:
                     # Extract title
@@ -143,7 +142,8 @@ def full_crawl_articles():
                     
                 except Exception as e:
                     print(f"Error extracting data for an article: {e}")
-            page +=1    
+            print( f"Complete Crawled {len(articles)} on {page}")  
+            page +=1
         except Exception as e:
             print(f"Error crawing {URL}")
             time.sleep(5)
