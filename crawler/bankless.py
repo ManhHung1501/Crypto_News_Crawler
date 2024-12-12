@@ -100,6 +100,7 @@ def full_crawl_articles():
     previous_news = 0
     count = 0
     while True:
+        
         data_div = driver.find_element(By.CSS_SELECTOR, "div.contentList").find_elements(By.CSS_SELECTOR, "a.articleBlockSmall")
         current_news = (len(data_div))
         if current_news == previous_news:
@@ -107,6 +108,8 @@ def full_crawl_articles():
                 break
             count += 1
             time.sleep(3)
+        else:
+            count = 0
         articles = data_div[previous_news:current_news]
         print( f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:

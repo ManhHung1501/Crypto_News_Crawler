@@ -111,6 +111,8 @@ def full_crawl_articles():
                 break
             count += 1
             time.sleep(3)
+        else:
+            count = 0
         articles = data_div[previous_news:current_news]
         print( f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:
