@@ -58,7 +58,7 @@ def get_detail_article( articles):
             author_element = soup.find('span', {'class': 'authorContent'})
             if author_element:
                 first_span = author_element.find("span")
-                published_at = datetime.strptime(first_span.get_text(strip=True), "%b %d, %Y").strftime("%Y:%d:%m %H:%M:%S") if first_span else "1970-01-01 00:00:00"
+                published_at = datetime.strptime(first_span.get_text(strip=True), "%b %d, %Y").strftime("%Y-%m-%d %H:%M:%S") if first_span else "1970-01-01 00:00:00"
 
             # content                
             data_tag = soup.find('div', {'class': 'contents'})

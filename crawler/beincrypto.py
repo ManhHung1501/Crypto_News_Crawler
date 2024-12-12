@@ -67,7 +67,7 @@ def get_detail_article(articles):
             # Extract the 'datetime' attribute
             time_element = driver.find_element(By.TAG_NAME, "time")
             datetime_value = time_element.get_attribute("datetime")
-            published_at = datetime.strptime(datetime_value, "%Y-%m-%dT%H:%M:%S%z").strftime("%Y:%m:%d %H:%M:%S")
+            published_at = datetime.strptime(datetime_value, "%Y-%m-%dT%H:%M:%S%z").strftime("%Y-%m-%d %H:%M:%S")
 
             # Get the page source and parse it with BeautifulSoup
             article_cards = BeautifulSoup(driver.find_element(By.CSS_SELECTOR, 'div.entry-content-inner').get_attribute('innerHTML'), 'html.parser')
@@ -87,6 +87,7 @@ def get_detail_article(articles):
             print(f'Failed to get published at for {url}')
 
         article['content'] = content
+        article['published_at'] = published_at
         driver.quit()
     return articles
 

@@ -56,7 +56,7 @@ def convert_relative_time_to_datetime(datetime_str):
             break
     if parsed_time == "1970-01-01 00:00:00":
         try:
-            parsed_time = datetime.strptime(datetime_str, "%B %d, %Y").strftime("%Y:%m:%d %H:%M:%S")
+            parsed_time = datetime.strptime(datetime_str, "%B %d, %Y").strftime("%Y-%m-%d %H:%M:%S")
         except Exception  as e:
             print(f"Failed to parse datetime string: {datetime_str}")
    

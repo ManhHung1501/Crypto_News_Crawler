@@ -59,7 +59,7 @@ def get_detail_article( articles):
                 title = title_element.find("h1").get_text(strip=True)
 
                 datetime_value = title_element.find('time')['datetime']
-                published_at = datetime.strptime(datetime_value, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y:%m:%d %H:%M:%S")
+                published_at = datetime.strptime(datetime_value, "%Y-%m-%dT%H:%M:%SZ").strftime("%Y-%m-%d %H:%M:%S")
             
 
             # content                

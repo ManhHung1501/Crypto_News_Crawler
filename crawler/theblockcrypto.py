@@ -30,7 +30,7 @@ def parse_date(date_str):
         utc_date = date_obj.astimezone(pytz.utc)
 
         # Format the date as yyyy:mm:dd hh:mm:ss
-        return utc_date.strftime("%Y:%m:%d %H:%M:%S")
+        return utc_date.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         print(f'Error in Parse Date {date_str}')
         return "1970-01-01 00:00:00"

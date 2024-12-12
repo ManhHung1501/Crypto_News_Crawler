@@ -143,7 +143,7 @@ def full_crawl_articles():
                         "id": article_id,
                         "title": title_element.text,
                         "url": article_url,
-                        "published_at": datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y:%m:%d %H:%M:%S"),
+                        "published_at": datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y-%m-%d %H:%M:%S"),
                         "source": "blockworks.co"
                     })
                     crawled_id.add(article_id)

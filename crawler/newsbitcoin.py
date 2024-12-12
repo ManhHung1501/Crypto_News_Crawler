@@ -56,7 +56,7 @@ def parse_date(date_str):
     try:
         date_obj = datetime.strptime(date_str, "%b %d, %Y")
         # Format to desired string format
-        formatted_date = date_obj.strftime("%Y:%m:%d %H:%M:%S")
+        formatted_date = date_obj.strftime("%Y-%m-%d %H:%M:%S")
         return formatted_date
     except ValueError:
         # If no match or valid date, return the default value

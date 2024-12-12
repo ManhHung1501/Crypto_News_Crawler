@@ -125,7 +125,7 @@ def full_crawl_articles():
                         articles_data.append({
                             "id": article_id,
                             "title": title,
-                            "published_at": datetime.fromisoformat(article.find('time', class_='post-date')['datetime'].strip()).strftime("%Y:%m:%d %H:%M:%S"),
+                            "published_at": datetime.fromisoformat(article.find('time', class_='post-date')['datetime'].strip()).strftime("%Y-%m-%d %H:%M:%S"),
                             "url": article_url,
                             "source": "blockonomi.com"
                         })
