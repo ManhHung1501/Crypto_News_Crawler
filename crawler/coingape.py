@@ -14,12 +14,12 @@ from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
 # Function to convert relative time to a datetime object
-def convert_relative_time_to_datetime(relative_time_str):
-    relative_time_str = relative_time_str.lower()
+def convert_relative_time_to_datetime(datetime_str):
+    relative_time_str = datetime_str.lower()
 
     # Current time
     current_time = datetime.now()
-
+    parsed_time = "1970-01-01 00:00:00"
     # Regular expression to match different time units (second, minute, hour, day, week, month, year)
     time_patterns = {
         'second': r"(\d+)\s*(second|seconds)\s*ago",
@@ -52,10 +52,15 @@ def convert_relative_time_to_datetime(relative_time_str):
                 calculated_time = current_time - relativedelta(years=amount)
             
             # Return the result in 'yyyy-mm-dd hh:mm:ss' format
-            return calculated_time.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # If no match found, return a default value
-    return "1970-01-01 00:00:00"
+            parsed_time = calculated_time.strftime('%Y-%m-%d %H:%M:%S')
+            break
+    if parsed_time == "1970-01-01 00:00:00":
+        try:
+            parsed_time = datetime.strptime(datetime_str, "%B %d, %Y").strftime("%Y:%m:%d %H:%M:%S")
+        except Exception  as e:
+            print(f"Failed to parse datetime string: {datetime_str}")
+   
+    return parsed_time
 
 # Get publish timestamp
 def get_detail_article( articles):
