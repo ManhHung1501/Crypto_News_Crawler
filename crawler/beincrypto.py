@@ -142,7 +142,7 @@ def full_crawl_articles():
                     
                 except Exception as e:
                     print(f"Error extracting data for an article: {e}")
-            print( f"Complete Crawled {len(articles)} on {page}")  
+            print( f"Complete Crawled {len(articles)} on page {page}")  
             page +=1
         except Exception as e:
             print(f"Error crawing {URL}")
