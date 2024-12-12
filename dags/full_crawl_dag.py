@@ -4,7 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
 from crawler import (coindesk,cointelegraph,cryptoslate, 
     bitcoinist, newsbitcoin, cryptonews, blockonomi, newsbtc, 
-    decrypt, bankless)
+    decrypt, bankless, beincrypto)
 from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin
 
 
@@ -28,6 +28,11 @@ with DAG(
     schedule_interval=None,
     catchup=False,
 ) as dag:
+    crawl_beincrypto_task = PythonOperator(task_id='crawl_beincrypto',
+                                python_callable=beincrypto.full_crawl_articles,
+                                provide_context=True
+                                )
+    
     crawl_bankless_task = PythonOperator(task_id='crawl_bankless',
                                 python_callable=bankless.full_crawl_articles,
                                 provide_context=True
