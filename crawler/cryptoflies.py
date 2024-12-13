@@ -25,7 +25,7 @@ def get_total_page(URL):
 
         except Exception as e:
             print(f"Error while finding total pages: {e}")
-    return None
+    return 1
     
 # Get content article
 def get_detail_article(articles):
