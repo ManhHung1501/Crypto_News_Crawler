@@ -145,6 +145,10 @@ def full_crawl_articles():
     
         # Click the "More stories" button to load more articles
         try:
+            iframe_id = "google_ads_iframe_/22877104442/cn-header-sticky_0"
+            iframe = driver.find_elements(By.ID, iframe_id)  # Use `find_elements` to avoid exceptions
+            if iframe:
+                driver.execute_script(f"document.getElementById('{iframe_id}').style.display = 'none';")
             load_more_button = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "button.alm-load-more-btn.more"))
             )
@@ -156,9 +160,6 @@ def full_crawl_articles():
                 print("No more articles to load or button not clickable.")
                 break
                 
-        except NoSuchElementException as e:
-            print(f"No 'More stories' button found")
-            break
         except Exception as e:
             print("Error in click more: ", e)
             break
