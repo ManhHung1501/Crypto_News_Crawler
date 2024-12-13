@@ -144,19 +144,14 @@ def full_crawl_articles():
                 print(f"Error extracting data for an article: {e}")
     
         # Click the "More stories" button to load more articles
-        try:
-            driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
-            previous_news = current_news
+        try: 
+            button = driver.find_element(By.CSS_SELECTOR, '.alm-load-more-btn')
+            driver.execute_script("arguments[0].scrollIntoView(true);", button)  # Scroll into view
+            driver.execute_script("arguments[0].click();", button)
+            previous_news =current_news
         except Exception as e:
-            print("Error in scroll, trying click...: ", e)
-            try: 
-                button = driver.find_element(By.CSS_SELECTOR, '.alm-load-more-btn')
-                driver.execute_script("arguments[0].scrollIntoView(true);", button)  # Scroll into view
-                ActionChains(driver).move_to_element(button).click().perform()
-                previous_news =current_news
-            except Exception as e:
-                print("Error in click: ", e)
-                break
+            print("Error in click: ", e)
+            break
                 
         # Wait for new articles to load
         time.sleep(random.uniform(2, 3))
