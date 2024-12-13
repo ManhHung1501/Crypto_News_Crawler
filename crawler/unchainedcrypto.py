@@ -27,6 +27,8 @@ def parse_date(date_str):
         return "1970-01-01 00:00:00"
     
     try:
+        if 'Updated' in date_str:
+            date_str = date_str.split('.')[0].strip()
         # Clean up the date string
         date_cleaned = date_str.replace(".", "").replace("Posted ", "").replace("at ", "").strip()
         
