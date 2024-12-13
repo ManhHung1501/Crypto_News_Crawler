@@ -34,7 +34,7 @@ def get_detail_article(articles):
             
             article_card = soup.find("div", class_="post-body entry-content")
             if article_card:
-                unwanted_cards = "i"
+                unwanted_cards = "i, span"
                 for unwanted in article_card.select(unwanted_cards):
                     unwanted.decompose()
 
