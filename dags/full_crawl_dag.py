@@ -5,8 +5,8 @@ from airflow.utils.task_group import TaskGroup
 from crawler import (coindesk,cointelegraph,cryptoslate, 
     bitcoinist, newsbitcoin, cryptonews, blockonomi, newsbtc, 
     decrypt, bankless, beincrypto, coingape, unchainedcrypto,
-    utoday, cryptoflies)
-from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies
+    utoday, cryptoflies, nftgators)
+from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators
 
 
 # Default arguments for the DAG
@@ -78,6 +78,19 @@ with DAG(
                                 python_callable=cryptonews.full_crawl_articles,
                                 provide_context=True
                                 )
+    with TaskGroup(group_id=f"Group_Crawler_Nftgators") as task_group_API_android:
+        previous_task = None
+        for category in Nftgators.categories:
+            crawl_nftgators_task = PythonOperator(task_id=f'crawl_nftgators_{category}',
+                                        python_callable=nftgators.full_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_nftgators_task
+            previous_task = crawl_nftgators_task
     
     with TaskGroup(group_id=f"Group_Crawler_Cryptoflies") as task_group_API_android:
         previous_task = None

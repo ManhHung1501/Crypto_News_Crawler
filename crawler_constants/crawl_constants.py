@@ -9,3 +9,6 @@ class NewsBitcoin:
 
 class Cryptoflies:
     categories = ['nft-news', 'metaverse-news', 'crypto', 'memecoin-news', 'web3', 'press-release']
+
+class Nftgators:
+    categories = ['web3', 'nft-news', 'industry', 'onchain', 'learn', 'blockchain-games', 'collectibles', 'metaverse', 'interviews']
