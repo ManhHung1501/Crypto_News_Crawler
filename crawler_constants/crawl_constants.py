@@ -6,3 +6,6 @@ class Coindesk:
 
 class NewsBitcoin:
     categories = ['market-updates', 'finance', 'economics', 'blockchain', 'markets-and-prices', 'mining', 'news-bytes', 'regulation', 'legal', 'learning-insights']
+
+class Cryptoflies:
+    categories = ['nft-news', 'metaverse-news', 'crypto', 'memecoin-news', 'web3', 'press-release']

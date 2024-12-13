@@ -8,38 +8,6 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-# Function to convert relative time to a datetime object
-def parse_date(date_str):
-    # Replace the timezone abbreviations with full names and offsets
-    if "EST" in date_str:
-        date_str = date_str.replace("EST", "-0500")
-    elif "EDT" in date_str:
-        date_str = date_str.replace("EDT", "-0400")
-    elif "UTC" in date_str:
-        date_str = date_str.replace("UTC", "-0000")
-    else:
-        print(f"Invalid time zone in {date_str}")
-        return "1970-01-01 00:00:00"
-    
-    try:
-        # Clean up the date string
-        date_cleaned = date_str.replace(".", "").replace("Posted ", "").replace("at ", "").strip()
-        
-        # Ensure the correct format with a space between time and AM/PM
-        date_cleaned = date_cleaned.replace(",", "")  # Remove commas if any
-        
-        # Parse the date string with the offset
-        date_obj = datetime.strptime(date_cleaned, "%B %d %Y %I:%M %p %z")
-
-        # Convert to UTC
-        utc_date = date_obj.astimezone(pytz.utc)
-
-        # Format the date as yyyy-mm-dd hh:mm:ss
-        return utc_date.strftime("%Y-%m-%d %H:%M:%S")
-    
-    except Exception as e:
-        print(f'Error in Parse Date: {date_str} -> {str(e)}')
-        return "1970-01-01 00:00:00"
 
 # Get content article
 def get_detail_article(articles):
