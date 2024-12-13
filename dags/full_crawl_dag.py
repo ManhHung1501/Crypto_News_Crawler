@@ -37,10 +37,6 @@ with DAG(
                                 python_callable=globalcryptopress.full_crawl_articles,
                                 provide_context=True
                                 )
-    crawl_globalcryptopress_task = PythonOperator(task_id='crawl_globalcryptopress',
-                                python_callable=globalcryptopress.full_crawl_articles,
-                                provide_context=True
-                                )
     crawl_utoday_task = PythonOperator(task_id='crawl_utoday',
                                 python_callable=utoday.full_crawl_articles,
                                 provide_context=True
