@@ -38,7 +38,7 @@ def get_detail_article(articles):
                 for unwanted in article_card.select(unwanted_cards):
                     unwanted.decompose()
 
-                content = ' '.join(article_card.stripped_strings)
+                content = ' '.join(article_card.stripped_strings).replace("-----------")("")
             
         except Exception as e: 
             print(f'Error in get content for {url}: ', e)
