@@ -1,4 +1,4 @@
-import time, random, requests
+import time, random, requests, re
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
 from datetime import datetime, timezone
@@ -38,7 +38,8 @@ def get_detail_article(articles):
                 for unwanted in article_card.select(unwanted_cards):
                     unwanted.decompose()
 
-                content = ' '.join(article_card.stripped_strings).replace("-----------","")
+                content = ' '.join(article_card.stripped_strings)
+                content =  re.sub(r'-{2,}', '', content)
             
         except Exception as e: 
             print(f'Error in get content for {url}: ', e)
