@@ -45,7 +45,7 @@ def get_detail_article(articles):
         if published_at == "1970-01-01 00:00:00":
             print(f'Failed to get Publish date for {url}')
 
-        article['published_at'] = content   
+        article['published_at'] = published_at   
         article['content'] = content
     return articles
 
