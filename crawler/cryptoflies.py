@@ -69,7 +69,7 @@ def get_detail_article(articles):
 def full_crawl_articles(category):
     minio_client = connect_minio()
  
-    prefix = f'web_crawler/cryptoflies/cryptoflies_initial_batch_'
+    prefix = f'web_crawler/cryptoflies/{category}/cryptoflies_{category}_initial_batch_'
     last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
     URL = f"https://blog.cryptoflies.com/category/{category}/"
     print(f"Crawling URL: {URL}")
