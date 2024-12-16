@@ -1,4 +1,4 @@
-import time, random, requests
+import time, random, requests, re
 from datetime import datetime
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
@@ -9,7 +9,6 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-# Get content article
 def get_detail_article(articles):
     for article in articles:
         content = "No content"
@@ -34,16 +33,16 @@ def get_detail_article(articles):
                 
             soup = BeautifulSoup(response.content, "html.parser")
             article_card = soup.find("div", class_="elementor-widget-theme-post-content")
+            date_tag = article_card.find("p", class_="last-updated")
+            if date_tag:
+                date_string=date_tag.text.replace("Last updated on", "").strip()
+                date_string = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_string)
+                published_at = datetime.strptime(date_string, "%B %d, %Y at %I:%M %p").strftime("%Y-%m-%d %H:%M:%S")
             if article_card:
                 unwanted_cards = ".wp-block-essential-blocks-table-of-contents, .last-updated"
                 for unwanted in article_card.select(unwanted_cards):
                     unwanted.decompose()
                 content = ' '.join(article_card.stripped_strings)
-            date_string = article_card.find("p", class_="last-updated").text.replace("Last updated on", "").strip()
-            if date_string:
-                for suffix in ['st', 'nd', 'rd', 'th']:
-                    date_string = date_string.replace(suffix, '')
-                published_at = datetime.strptime(date_string, "%B %d, %Y at %I:%M %p").strftime("%Y-%m-%d %H:%M:%S")
             
         except Exception as e: 
             print(f'Error in get content for {url}: ', e)
@@ -52,9 +51,11 @@ def get_detail_article(articles):
         if published_at == "1970-01-01 00:00:00":
             print(f'Failed to get Publish date for {url}')
 
+
         article['published_at'] = published_at   
         article['content'] = content
     return articles
+
 
 def full_crawl_articles():
     driver = setup_driver()

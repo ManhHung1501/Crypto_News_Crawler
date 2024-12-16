@@ -30,8 +30,8 @@ with DAG(
     schedule_interval=None,
     catchup=False,
 ) as dag:
-    crawl_ambcrypto_task = PythonOperator(task_id='crawl_ambcrypto',
-                                python_callable=ambcrypto.full_crawl_articles,
+    crawl_turnmycoin_task = PythonOperator(task_id='crawl_turnmycoin',
+                                python_callable=turnmycoin.full_crawl_articles,
                                 provide_context=True
                                 )
     crawl_ambcrypto_task = PythonOperator(task_id='crawl_ambcrypto',
