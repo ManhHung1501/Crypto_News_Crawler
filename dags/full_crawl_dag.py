@@ -6,7 +6,7 @@ from crawler import (coindesk,cointelegraph,cryptoslate,
     bitcoinist, newsbitcoin, cryptonews, blockonomi, newsbtc, 
     decrypt, bankless, beincrypto, coingape, unchainedcrypto,
     utoday, cryptoflies, nftgators, globalcryptopress, crypto_news,
-    ambcrypto, turnmycoin, holder_io, coinpedia, nftevening)
+    ambcrypto, turnmycoin, holder_io, coinpedia, nftevening, buildoncronos)
 from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators
 
 
@@ -30,6 +30,10 @@ with DAG(
     schedule_interval=None,
     catchup=False,
 ) as dag:
+    crawl_buildoncronos_task = PythonOperator(task_id='crawl_buildoncronos',
+                                python_callable=buildoncronos.full_crawl_articles,
+                                provide_context=True
+                                )
     crawl_nftevening_task = PythonOperator(task_id='crawl_nftevening',
                                 python_callable=nftevening.full_crawl_articles,
                                 provide_context=True
