@@ -32,19 +32,23 @@ def get_detail_article(articles):
                     time.sleep(10)
                 
             soup = BeautifulSoup(response.content, "html.parser")
-            article_card = soup.find("div", class_="MuiBox-root css-xdym45")
-            if not article_card:
-                article_card = soup.find("div", class_="MuiGrid-root MuiGrid-container css-1d3bbye")
+
+            date_tag = soup.find("span", class_="MuiBox-root css-k008qs")
+            if date_tag:
+                try:
+                    raw_date = date_tag.get_text(strip=True).replace("·", "").strip()
+                    published_at = datetime.strptime(raw_date,"%m/%d/%y").strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e: 
+                    print(f'Error parse date for {url}: ', e)
+
+            article_card = soup.find("div", class_="MuiGrid-root MuiGrid-container css-1d3bbye")
             
             unwanted_tags = ".permalink-heading, .embed-wrapper"
             for unwanted_tag in article_card.select(unwanted_tags):
                 unwanted_tag.decompose()
             content = ' '.join(article_card.stripped_strings)
 
-            date_tag = soup.find("span", class_="MuiBox-root css-k008qs")
-            if date_tag:
-                raw_date = date_tag.get_text(strip=True).replace("·", "").strip()
-                published_at = datetime.strptime(raw_date,"%m/%d/%y").strftime("%Y-%m-%d %H:%M:%S")
+            
             
         except Exception as e: 
             print(f'Error in get content for {url}: ', e)
