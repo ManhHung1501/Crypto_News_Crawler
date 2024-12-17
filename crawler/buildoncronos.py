@@ -125,7 +125,7 @@ def full_crawl_articles():
             if retries_count > 3:
                 break
         time.sleep(random.uniform(2, 4))
-        break
+
     if articles_data:
         articles_data = get_detail_article(articles=articles_data)
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
