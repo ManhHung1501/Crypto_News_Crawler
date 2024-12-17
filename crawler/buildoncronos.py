@@ -130,7 +130,7 @@ def full_crawl_articles():
         articles_data = get_detail_article(articles=articles_data)
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
-
+    driver.quit()
     
 # Run the crawling process
 if __name__ == "__main__":

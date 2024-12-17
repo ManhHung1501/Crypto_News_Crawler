@@ -15,3 +15,6 @@ class Nftgators:
 
 class DroomDroom:
     categories = ['adoption', 'bitcoin', 'altcoin', 'nfts', 'defi', 'dao', 'metaverse', 'regulation', 'future-of-web3', 'winners-of-web3']
+
+class NonFungible:
+    categories = ['analysis', 'art', 'collectible', 'corporate', 'defi', 'game', 'metaverse', 'opinions', 'utility']

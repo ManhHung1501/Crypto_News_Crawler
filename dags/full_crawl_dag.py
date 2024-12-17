@@ -7,8 +7,8 @@ from crawler import (coindesk,cointelegraph,cryptoslate,
     decrypt, bankless, beincrypto, coingape, unchainedcrypto,
     utoday, cryptoflies, nftgators, globalcryptopress, crypto_news,
     ambcrypto, turnmycoin, holder_io, coinpedia, nftevening, buildoncronos,
-    droomdroom, blockchainalpha)
-from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators, DroomDroom
+    droomdroom, blockchainalpha, nonfungible)
+from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators, DroomDroom, NonFungible
 
 
 # Default arguments for the DAG
@@ -117,6 +117,20 @@ with DAG(
                                 provide_context=True
                                 )
     
+    with TaskGroup(group_id=f"Group_Crawler_NonFungible") as task_group_API_android:
+        previous_task = None
+        for category in NonFungible.categories:
+            crawl_nonfungible_task = PythonOperator(task_id=f'crawl_nonfungible_{category}',
+                                        python_callable=nonfungible.full_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_nonfungible_task
+            previous_task = crawl_nonfungible_task
+
     with TaskGroup(group_id=f"Group_Crawler_DroomDroom") as task_group_API_android:
         previous_task = None
         for category in DroomDroom.categories:
