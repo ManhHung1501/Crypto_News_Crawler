@@ -60,7 +60,7 @@ def full_crawl_articles(category):
     
     minio_client = connect_minio()
  
-    prefix = f'web_crawler/nonfungible/nonfungible_initial_batch_'
+    prefix = f'web_crawler/nonfungible/{category}/nonfungible_{category}_initial_batch_'
     last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
     URL = f"https://nonfungible.com/news/{category}"
     print(f"Crawling URL: {URL}")
