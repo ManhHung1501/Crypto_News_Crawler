@@ -111,7 +111,7 @@ def full_crawl_articles(category):
                     articles_data.append({
                         "id": article_id,
                         "title": title_text,
-                        "url": f"https://nonfungible.com/{article_url}",
+                        "url": f"https://nonfungible.com{article_url}",
                         "source": "nonfungible.com"
                     })
            
