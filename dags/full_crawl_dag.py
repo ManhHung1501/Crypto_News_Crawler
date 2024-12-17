@@ -6,8 +6,9 @@ from crawler import (coindesk,cointelegraph,cryptoslate,
     bitcoinist, newsbitcoin, cryptonews, blockonomi, newsbtc, 
     decrypt, bankless, beincrypto, coingape, unchainedcrypto,
     utoday, cryptoflies, nftgators, globalcryptopress, crypto_news,
-    ambcrypto, turnmycoin, holder_io, coinpedia, nftevening, buildoncronos)
-from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators
+    ambcrypto, turnmycoin, holder_io, coinpedia, nftevening, buildoncronos,
+    droomdroom)
+from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators, DroomDroom
 
 
 # Default arguments for the DAG
@@ -111,6 +112,17 @@ with DAG(
                                 python_callable=cryptonews.full_crawl_articles,
                                 provide_context=True
                                 )
+    
+    with TaskGroup(group_id=f"Group_Crawler_DroomDroom") as task_group_API_android:
+        previous_task = None
+        for category in DroomDroom.categories:
+            crawl_droomdroom_task = PythonOperator(task_id=f'crawl_droomdroom_{category}',
+                                        python_callable=droomdroom.full_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
     with TaskGroup(group_id=f"Group_Crawler_Nftgators") as task_group_API_android:
         previous_task = None
         for category in Nftgators.categories:

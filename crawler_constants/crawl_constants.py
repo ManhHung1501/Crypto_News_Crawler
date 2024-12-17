@@ -12,3 +12,6 @@ class Cryptoflies:
 
 class Nftgators:
     categories = ['web3', 'nft-news', 'industry', 'onchain', 'learn', 'blockchain-games', 'collectibles', 'metaverse', 'interviews']
+
+class DroomDroom:
+    categories = ['adoption', 'bitcoin', 'altcoin', 'nfts', 'defi', 'dao', 'metaverse', 'regulation', 'future-of-web3', 'winners-of-web3']
