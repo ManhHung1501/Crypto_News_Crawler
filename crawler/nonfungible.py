@@ -38,11 +38,13 @@ def get_detail_article(articles):
                 published_at = datetime.strptime(raw_date,"%m/%d/%y").strftime("%Y-%m-%d %H:%M:%S")
                 
             article_card = soup.find("div", class_="MuiBox-root css-xdym45")
-            if article_card:
-                unwanted_tags = ".permalink-heading, .embed-wrapper"
-                for unwanted_tag in article_card.select(unwanted_tags):
-                    unwanted_tag.decompose()
-                content = ' '.join(article_card.stripped_strings)
+            if not article_card:
+                article_card = soup.find("div", class_="MuiGrid-root MuiGrid-container css-1d3bbye")
+            
+            unwanted_tags = ".permalink-heading, .embed-wrapper"
+            for unwanted_tag in article_card.select(unwanted_tags):
+                unwanted_tag.decompose()
+            content = ' '.join(article_card.stripped_strings)
             
         except Exception as e: 
             print(f'Error in get content for {url}: ', e)
