@@ -9,9 +9,11 @@ from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
 
+
 def get_detail_article(articles):
     for article in articles:
         content = "No content"
+        published_at = "1970-01-01 00:00:00"
         url = article['url']
         try:
             for _ in range(3):
@@ -27,19 +29,29 @@ def get_detail_article(articles):
                 except requests.exceptions.RequestException as e:
                     print(f'Retrying ...')
                     print(f"Request for {url} failed: {e}")
-                    time.sleep(5)
+                    time.sleep(10)
                 
             soup = BeautifulSoup(response.content, "html.parser")
-            
-            article_card = soup.find("div", class_="entry-content")
+            date_tag = soup.find("time")
+            if date_tag:
+                published_at = datetime.strptime(date_tag['datetime'], "%Y-%m-%dT%H:%M:%S.%fZ").strftime("%Y-%m-%d %H:%M:%S")
+                
+            article_card = soup.find("div", id="post-content-parent")
             if article_card:
+                unwanted_tags = ".permalink-heading, .embed-wrapper"
+                for unwanted_tag in article_card.select(unwanted_tags):
+                    unwanted_tag.decompose()
                 content = ' '.join(article_card.stripped_strings)
             
         except Exception as e: 
             print(f'Error in get content for {url}: ', e)
         if content == "No content":
             print(f"Failed to get content of url: {url}")
-      
+        if published_at == "1970-01-01 00:00:00":
+            print(f'Failed to get Publish date for {url}')
+
+        
+        article['published_at'] = published_at
         article['content'] = content
     return articles
 
@@ -48,16 +60,15 @@ def full_crawl_articles():
     
     minio_client = connect_minio()
  
-    prefix = f'web_crawler/nftevening/nftevening_initial_batch_'
+    prefix = f'web_crawler/blockchainalpha/blockchainalpha_initial_batch_'
     last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
-    URL = f"https://nftevening.com/news/"
+    URL = f"https://blockchainalpha.hashnode.dev/"
     print(f"Crawling URL: {URL}")
 
     # Open the URL
     driver.get(URL)
-
     # Wait for the articles to load initially
-    wait_for_page_load(driver, 'div.category-posts')
+    wait_for_page_load(driver, 'div.blog-posts-wrapper')
     
     not_crawled = last_crawled_id is None
     articles_data = []
@@ -67,10 +78,10 @@ def full_crawl_articles():
     count = 0
     while True:
         # Get all the articles on the current page
-        container = driver.find_element(By.CSS_SELECTOR, "div.category-posts")
+        container = driver.find_element(By.CSS_SELECTOR, "div.blog-posts-wrapper")
         
         # Find all the articles within the container
-        data_div = container.find_elements(By.CSS_SELECTOR, "div.card-post__text")
+        data_div = container.find_elements(By.CSS_SELECTOR, "div.blog-post-card")
         current_news = len(data_div)
         if current_news == previous_news:
             if count == 3:
@@ -84,7 +95,7 @@ def full_crawl_articles():
         for article in articles:
             try:
                 # Extract title
-                title_element = article.find_element(By.CSS_SELECTOR, "h3.title a")
+                title_element = article.find_element(By.CSS_SELECTOR, "h2.blog-post-card-title a")
                 article_url = title_element.get_attribute("href")
                 article_id = generate_url_hash(article_url)
                 # Skip if the article URL has already been processed
@@ -94,14 +105,12 @@ def full_crawl_articles():
                     not_crawled = True
                     continue
                 if not_crawled:
-                    date_str = article.find_element(By.CSS_SELECTOR, "li.date").text.strip()
                     # Add the article data to the list
                     articles_data.append({
                         "id": article_id,
                         "title": title_element.text.strip(),
                         "url": article_url,
-                        "published_at": datetime.strptime(date_str, "%B %d, %Y").strftime("%Y-%m-%d %H:%M:%S"),
-                        "source": "nftevening.com"
+                        "source": "blockchainalpha.tech"
                     })
                 if len(articles_data) == batch_size:
                     articles_data = get_detail_article(articles=articles_data)
@@ -117,15 +126,24 @@ def full_crawl_articles():
         
         # Click the "More stories" button to load more articles
         try:
-            next_button = driver.find_element(By.CSS_SELECTOR, "a.view-more.js-more")
+            next_button = driver.find_element(By.XPATH, "//button[.//span[text()='Load more']]")
             driver.execute_script("arguments[0].click();", next_button)  
             previous_news = current_news
         except Exception as e:
-            print("Error in click more: ", e)
-            break
+            try:
+                driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
+                print(f"Process from {previous_news} to {current_news}")
+                previous_news = current_news
+                retries_count = 0
+            except IndexError:
+                print(f"Get Error in load more news retries {retries_count}/{3}")
+                retries_count+=1
+                if retries_count > 3:
+                    break
+          
         time.sleep(random.uniform(2, 4))
-    if articles_data:
 
+    if articles_data:
         articles_data = get_detail_article(articles=articles_data)
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
