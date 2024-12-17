@@ -146,12 +146,9 @@ def full_crawl_articles(category):
             print(f"Error: {e}")
 
     if articles_data:
-        print(f'Len data: {len(articles_data)}')
-        print(articles_data[0])
-        print(articles_data[-1])
-        # articles_data = get_detail_article(articles=articles_data)
-        # object_key = f'{prefix}{current_batch + len(articles_data)}.json'
-        # upload_json_to_minio(json_data=articles_data,object_key=object_key)
+        articles_data = get_detail_article(articles=articles_data)
+        object_key = f'{prefix}{current_batch + len(articles_data)}.json'
+        upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
     
 # Run the crawling process
