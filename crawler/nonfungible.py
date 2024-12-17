@@ -38,10 +38,12 @@ def get_detail_article(articles):
                 try:
                     raw_date = date_tag.get_text(strip=True).replace("·", "").strip()
                     published_at = datetime.strptime(raw_date,"%m/%d/%y").strftime("%Y-%m-%d %H:%M:%S")
+                    article_card = soup.find("div", class_="MuiBox-root css-xdym45")
                 except Exception as e: 
+                    article_card = soup.find("div", class_="MuiBox-root css-mzvzpv")
                     print(f'Error parse date for {url}: ', e)
 
-            article_card = soup.find("div", class_="MuiGrid-root MuiGrid-container css-1d3bbye")
+            
             
             unwanted_tags = ".permalink-heading, .embed-wrapper"
             for unwanted_tag in article_card.select(unwanted_tags):
