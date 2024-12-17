@@ -114,6 +114,7 @@ def full_crawl_articles(category):
                         "url": f"https://nonfungible.com{article_url}",
                         "source": "nonfungible.com"
                     })
+                    crawled_id.add(article_id)
            
                 if len(articles_data) == batch_size:
                     articles_data = get_detail_article(articles=articles_data)
@@ -122,7 +123,6 @@ def full_crawl_articles(category):
                     upload_json_to_minio(json_data=articles_data,object_key=object_key)
                     current_batch = new_batch
                     articles_data = []
-                    crawled_id = set()
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
                 break
