@@ -26,7 +26,7 @@ def setup_driver():
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-extensions")
     options.add_argument("window-size=1200x600")
-
+    
     if not os.path.exists(CHROME_DRIVER_PATH) or not os.access(CHROME_DRIVER_PATH, os.X_OK):
         print("ChromeDriver not found or not executable. Using ChromeDriverManager to install it.")
         ChromeDriverManager().install()
