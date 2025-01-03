@@ -32,6 +32,11 @@ with DAG(
     catchup=False,
     max_active_tasks=3,
 ) as dag:
+    crawl_utoday_task = PythonOperator(task_id='crawl_utoday',
+                                python_callable=utoday.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
     crawl_coingape_task = PythonOperator(task_id='crawl_coingape',
                                 python_callable=coingape.incremental_crawl_articles,
                                 provide_context=True
