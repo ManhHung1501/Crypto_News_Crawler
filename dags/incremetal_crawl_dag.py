@@ -32,6 +32,41 @@ with DAG(
     catchup=False,
     max_active_tasks=3,
 ) as dag:
+    crawl_blockchainalpha_task = PythonOperator(task_id='crawl_blockchainalpha',
+                                python_callable=blockchainalpha.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_holder_io_task = PythonOperator(task_id='crawl_holder_io',
+                                python_callable=holder_io.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_buildoncronos_task = PythonOperator(task_id='crawl_buildoncronos',
+                                python_callable=buildoncronos.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_turnmycoin_task = PythonOperator(task_id='crawl_turnmycoin',
+                                python_callable=turnmycoin.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_crypto_news_task = PythonOperator(task_id='crawl_crypto_news',
+                                python_callable=crypto_news.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_nftevening_task = PythonOperator(task_id='crawl_nftevening',
+                                python_callable=nftevening.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_globalcryptopress_task = PythonOperator(task_id='crawl_globalcryptopress',
+                                python_callable=globalcryptopress.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
     crawl_unchainedcrypto_task = PythonOperator(task_id='crawl_unchainedcrypto',
                                 python_callable=unchainedcrypto.incremental_crawl_articles,
                                 provide_context=True
@@ -102,6 +137,48 @@ with DAG(
                                 provide_context=True
                                 )
     
+    with TaskGroup(group_id=f"Group_Crawler_NonFungible") as task_nonfungible:
+        previous_task = None
+        for category in NonFungible.categories:
+            crawl_nonfungible_task = PythonOperator(task_id=f'crawl_nonfungible_{category}',
+                                        python_callable=nonfungible.incremental_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_nonfungible_task
+            previous_task = crawl_nonfungible_task
+
+    with TaskGroup(group_id=f"Group_Crawler_Cryptoflies") as task_cryptoflies:
+        previous_task = None
+        for category in Cryptoflies.categories:
+            crawl_cryptoflies_task = PythonOperator(task_id=f'crawl_cryptoflies_{category}',
+                                        python_callable=cryptoflies.incremental_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_cryptoflies_task
+            previous_task = crawl_cryptoflies_task
+
+    with TaskGroup(group_id=f"Group_Crawler_DroomDroom") as task_droomdroom:
+        previous_task = None
+        for category in DroomDroom.categories:
+            crawl_droomdroom_task = PythonOperator(task_id=f'crawl_droomdroom_{category}',
+                                        python_callable=droomdroom.incremental_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_droomdroom_task
+            previous_task = crawl_droomdroom_task
+
     with TaskGroup(group_id=f"Group_Crawler_Nftgators") as task_nftgators:
         previous_task = None
         for category in Nftgators.categories:

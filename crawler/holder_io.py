@@ -3,7 +3,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
 # Get total page
@@ -76,7 +76,7 @@ def get_detail_article(articles):
     return articles
 
 def full_crawl_articles():
-    batch_size = 1000
+    batch_size = 100
     minio_client = connect_minio()
     
     prefix = f'web_crawler/holder.io/holder.io_initial_batch_'
@@ -148,8 +148,60 @@ def full_crawl_articles():
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
+def incremental_crawl_articles():
+    minio_client = connect_minio()
     
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+    prefix = f'web_crawler/holder.io/holder.io_initial_batch_'
+    STATE_FILE = f'web_crawler/holder.io/holder.io_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    
+    articles_data = []
+    page = 1
+    complete = False
+    while not complete:
+        print(f'Crawling news on page {page}')
+        URL = f"https://holder.io//page/{page}/"
+        
+        try:
+            # Fetch the HTML content
+            response = requests.get(URL, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Select the news-feed section and articles
+            news_feed = soup.select_one('div.post-cards')
+            articles = news_feed.select("section.post-card") if news_feed else []
+
+            for article in articles:
+                try:
+                    # Extract article title
+                    title_element = article.select_one("h2.post-card__title a")
+
+                    # Extract article URL
+                    article_url = title_element['href']
+                    article_id = generate_url_hash(article_url)
+
+                    if article_id in last_crawled:
+                        articles_data = get_detail_article(articles=articles_data)
+                        object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
+                        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                        complete = True
+                        break                
+                    # Add the article data to the list
+                    articles_data.append({
+                        "id": article_id,
+                        "title": title_element.text.strip(),
+                        "url": article_url,
+                        "source": "holder.io"
+                    })
+                    
+                except Exception as e:
+                    print(f"Error extracting data for {article_url}: {e}")
+            print(f"Total News Crawled After page {page} is {len(articles_data)}")
+            page += 1 
+        except requests.RequestException as e:
+            print(f"Error fetching page {page}: {e}")
+    
+    print("Crawling completed.")
+
     

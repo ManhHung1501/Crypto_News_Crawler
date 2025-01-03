@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
 from datetime import datetime
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
 # Get total page
@@ -145,7 +145,70 @@ def full_crawl_articles(category):
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
-    
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles('nft-news')
+def incremental_crawl_articles(category):
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/cryptoflies/{category}/cryptoflies_{category}_initial_batch_'
+    STATE_FILE = f'web_crawler/cryptoflies/{category}/cryptoflies_{category}_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    URL = f"https://blog.cryptoflies.com/category/{category}/"
+    print(f"Crawling URL: {URL}")
+
+    articles_data = []
+    page = 1
+    complete = False
+    while not complete:
+        print(f'Crawling news on page {page}')
+        URL = f"https://blog.cryptoflies.com/category/{category}/page/{page}/"
+        
+        try:
+            # Fetch the HTML content
+            response = requests.get(URL, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Select the news-feed section and articles
+            news_feed = soup.find('ul', class_='penci-wrapper-data penci-grid')
+            articles = news_feed.find_all('li', class_='list-post pclist-layout')
+            for article in articles:
+                try:
+                    # Extract article title
+                    title_element = article.find('h2', class_='penci-entry-title').find('a')
+                    if title_element:
+                        title = title_element.text.strip() 
+                        # Extract article URL
+                        article_url = title_element['href']
+                        article_id = generate_url_hash(article_url)
+
+                    # Skip already crawled articles
+                    if article_id in last_crawled:
+                        articles_data = get_detail_article(articles=articles_data)
+                        object_key = f'web_crawler/cryptoflies/{category}/cryptoflies_{category}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                        complete = True
+                        break
+                    time_element = article.find('time', class_='entry-date published')
+                    if time_element:
+                        datetime_str = time_element['datetime']
+                        published_at = datetime.fromisoformat(datetime_str).strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        published_at ="1970-01-01 00:00:00"
+                        print(f'Failed to get publish date for {article_url}')
+                    # Add the article data to the list
+                    articles_data.append({
+                        "id": article_id,
+                        "title": title,
+                        "url": article_url,
+                        "published_at": published_at,
+                        "source": "blog.cryptoflies.com"
+                    })
+                    
+                    
+                except Exception as e:
+                    print(f"Error extracting data for {article_url}: {e}")
+            print(f"Total News Crawled After page {page} is {len(articles_data)}")
+            page += 1 
+        except requests.RequestException as e:
+            print(f"Error fetching page {page}: {e}")
+            time.sleep(10)
+
+    print("Crawling completed.")

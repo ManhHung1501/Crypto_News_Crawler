@@ -8,7 +8,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -162,7 +162,90 @@ def full_crawl_articles():
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
+def incremental_crawl_articles():
+    driver = setup_driver()
     
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/crypto.news/crypto.news_initial_batch_'
+    STATE_FILE = f'web_crawler/crypto.news/crypto.news_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    URL = f"https://crypto.news/news/"
+    print(f"Crawling URL: {URL}")
+
+    # Open the URL
+    driver.get(URL)
+
+    # Wait for the articles to load initially
+    wait_for_page_load(driver, 'div.post-archive__content')
+    handle_cookie_consent(driver)
+
+    articles_data = []
+    crawled_id = set()
+    previous_news = 0 
+    count = 0
+
+    complete = False
+    while not complete:
+        # Get all the articles on the current page
+        container = driver.find_element(By.CSS_SELECTOR, "div.post-archive__content")
+
+        # Find all the articles within the container
+        data_div = container.find_elements(By.CSS_SELECTOR, "div.post-loop")
+        current_news = len(data_div)
+        if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
+            time.sleep(3)
+        else:
+            count = 0
+        articles = data_div[previous_news: current_news]
+        print(f"Crawling news from {previous_news} to {current_news} news")
+        
+        for article in articles:
+            try:
+                # Extract title
+                link_element = article.find_element(By.CSS_SELECTOR, "a.post-loop__link")
+                article_url = link_element.get_attribute("href")
+                article_id = generate_url_hash(article_url)
+                # Skip if the article URL has already been processed
+                if article_id in crawled_id:
+                    continue
+
+                if article_id in last_crawled:
+                    articles_data = get_detail_article(articles=articles_data)
+                    object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    complete = True
+                    break
+                date_str = article.find_element(By.CSS_SELECTOR, 'time').get_attribute('datetime')
+                # Add the article data to the list
+                articles_data.append({
+                    "id": article_id,
+                    "title": link_element.text.strip(),
+                    "url": article_url,
+                    "published_at": datetime.fromisoformat(date_str).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+                    "source": "crypto.news"
+                })
+                crawled_id.add(article_id)
+                
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+    
+        # Click the "More stories" button to load more articles
+        try: 
+            button = driver.find_element(By.CSS_SELECTOR, '.alm-load-more-btn')
+            driver.execute_script("arguments[0].scrollIntoView(true);", button)  # Scroll into view
+            driver.execute_script("arguments[0].click();", button)
+            previous_news =current_news
+        except Exception as e:
+            print("Error in click: ", e)
+            break
+                
+        # Wait for new articles to load
+        time.sleep(random.uniform(2, 3))
+
+    driver.quit()
+    print("Crawling completed.")
+    

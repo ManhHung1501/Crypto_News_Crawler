@@ -3,9 +3,8 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
-
 
 
 # Get total page
@@ -30,7 +29,6 @@ def get_total_page(URL):
             print(f"Error while finding total pages: {e}")
     return 1
  
-
 def get_detail_article(articles):
     for article in articles:
         content = "No content"
@@ -150,7 +148,64 @@ def full_crawl_articles(category):
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
-    
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+def incremental_crawl_articles(category):
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/droomdroom/{category}/droomdroom_{category}_initial_batch_'
+    STATE_FILE = f'web_crawler/droomdroom/{category}/droomdroom_{category}_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    URL = f"https://droomdroom.com/{category}/"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"}
+    print(f"Crawling URL: {URL}")
+
+    articles_data = []
+    page = 1
+    complete = False
+    while not complete:
+        print(f'Crawling news on page {page}')
+        URL = f"https://droomdroom.com/{category}/page/{page}/"
+        
+        try:
+            # Fetch the HTML content
+            response = requests.get(URL, timeout=10, headers=headers)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Select the news-feed section and articles
+            news_feed = soup.find('div', class_='block-inner')
+            articles = news_feed.find_all('h3', class_='entry-title')
+            for article in articles:
+                try:
+                    # Extract article title
+                    title_element = article.find('a', class_='p-url')
+                    if title_element:
+                        title = title_element.text.strip() 
+                        # Extract article URL
+                        article_url = title_element['href']
+                        article_id = generate_url_hash(article_url)
+
+                    if article_id in last_crawled:
+                        articles_data = get_detail_article(articles=articles_data)
+                        object_key = f'web_crawler/droomdroom/{category}/droomdroom_{category}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                        complete = True
+                        break
+        
+                    # Add the article data to the list
+                    articles_data.append({
+                        "id": article_id,
+                        "title": title,
+                        "url": article_url,
+                        "source": "droomdroom.com"
+                    })
+                    
+                except Exception as e:
+                    print(f"Error extracting data for {article_url}: {e}")
+            print(f"Total News Crawled After page {page} is {len(articles_data)}")
+            page += 1 
+        except requests.RequestException as e:
+            print(f"Error fetching page {page}: {e}")
+            time.sleep(20)
+        except Exception as e:
+            print(f"Error: {e}")
+
+    print("Crawling completed.")

@@ -4,7 +4,7 @@ from requests.exceptions import Timeout
 from datetime import datetime
 from selenium.webdriver.common.by import By
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -148,7 +148,88 @@ def full_crawl_articles():
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
+def incremental_crawl_articles():
+    driver = setup_driver()
     
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/blockchainalpha/blockchainalpha_initial_batch_'
+    STATE_FILE = f'web_crawler/blockchainalpha/blockchainalpha_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    URL = f"https://blockchainalpha.hashnode.dev/"
+    print(f"Crawling URL: {URL}")
+
+    # Open the URL
+    driver.get(URL)
+    # Wait for the articles to load initially
+    wait_for_page_load(driver, 'div.blog-posts-wrapper')
+    
+    articles_data = []
+    crawled_id = set()
+    previous_news = 0
+    count = 0
+    complete = False
+    while not complete:
+        # Get all the articles on the current page
+        container = driver.find_element(By.CSS_SELECTOR, "div.blog-posts-wrapper")
+        
+        # Find all the articles within the container
+        data_div = container.find_elements(By.CSS_SELECTOR, "div.blog-post-card")
+        current_news = len(data_div)
+        if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
+            time.sleep(3)
+        else:
+            count = 0
+        articles = data_div[previous_news:current_news]
+        print(f"Crawling news from {previous_news} to {current_news} news")
+        for article in articles:
+            try:
+                # Extract title
+                title_element = article.find_element(By.CSS_SELECTOR, "h2.blog-post-card-title a")
+                article_url = title_element.get_attribute("href")
+                article_id = generate_url_hash(article_url)
+                # Skip if the article URL has already been processed
+                if article_id in crawled_id:
+                    continue
+                if article_id in last_crawled:
+                    articles_data = get_detail_article(articles=articles_data)
+                    object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    complete = True
+                    break
+                
+                articles_data.append({
+                    "id": article_id,
+                    "title": title_element.text.strip(),
+                    "url": article_url,
+                    "source": "blockchainalpha.tech"
+                })
+                crawled_id.add(article_id)
+              
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+            
+        
+        # Click the "More stories" button to load more articles
+        try:
+            next_button = driver.find_element(By.XPATH, "//button[.//span[text()='Load more']]")
+            driver.execute_script("arguments[0].click();", next_button)  
+            previous_news = current_news
+        except Exception as e:
+            try:
+                driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
+                print(f"Process from {previous_news} to {current_news}")
+                previous_news = current_news
+                retries_count = 0
+            except IndexError:
+                print(f"Get Error in load more news retries {retries_count}/{3}")
+                retries_count+=1
+                if retries_count > 3:
+                    break
+          
+        time.sleep(random.uniform(2, 4))
+
+    print("Crawling completed.")

@@ -4,11 +4,9 @@ from requests.exceptions import Timeout
 from datetime import datetime
 from selenium.webdriver.common.by import By
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
-
-
 
 def get_detail_article(articles):
     for article in articles:
@@ -155,6 +153,86 @@ def full_crawl_articles(category):
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
     driver.quit()
     
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles('corporate')
+def incremental_crawl_articles(category):
+    driver = setup_driver()
+    
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/nonfungible/{category}/nonfungible_{category}_initial_batch_'
+    STATE_FILE = f'web_crawler/nonfungible/{category}/nonfungible_{category}_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    URL = f"https://nonfungible.com/news/{category}"
+    print(f"Crawling URL: {URL}")
+
+    # Open the URL
+    driver.get(URL)
+    # Wait for the articles to load initially
+    wait_for_page_load(driver, 'section')
+    
+    articles_data = []
+    crawled_id = set()
+    previous_news =0
+    complete = False
+    while not complete:
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        # Find all the articles within the container
+        articles = soup.find_all("a", class_="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-3pyhqk")
+        current_news = len(articles)
+        if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
+            time.sleep(3)
+        else:
+            count = 0
+        for article in articles:
+            try:
+                # Extract title
+                article_url = article_url = article.get("href", "")
+                if article_url in ('/about',""):
+                    continue
+                article_id = generate_url_hash(article_url)
+                # Skip if the article URL has already been processed
+                if article_id in crawled_id:
+                    continue
+                if article_id in last_crawled:
+                    articles_data = get_detail_article(articles=articles_data)
+                    object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    complete = True
+                    break
+                title_element = article.select_one("p")
+
+                if title_element: 
+                    title_text = title_element.get_text(strip=True) 
+                else:
+                    continue
+                # Add the article data to the list
+                articles_data.append({
+                    "id": article_id,
+                    "title": title_text,
+                    "url": f"https://nonfungible.com{article_url}",
+                    "source": "nonfungible.com"
+                })
+                crawled_id.add(article_id)
+           
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+                break
+    
+        try:
+            last = driver.find_element(By.CSS_SELECTOR, "div.MuiBox-root.css-1gktaos")
+            driver.execute_script("arguments[0].scrollIntoView();",last)
+       
+            previous_news = current_news 
+            retries_count = 0
+        except Exception:
+            print(f"Get Error in load more news retries {retries_count}/{3}")
+            retries_count+=1
+            if retries_count > 3:
+                break
+          
+        time.sleep(random.uniform(2, 4))
+
+    driver.quit()
+    print("Crawling completed.")
