@@ -245,7 +245,11 @@ def incremental_crawl_articles():
                 
         # Wait for new articles to load
         time.sleep(random.uniform(2, 3))
-
+        
+    if articles_data:
+        articles_data = get_detail_article(articles=articles_data)
+        object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
+        upload_json_to_minio(json_data=articles_data, object_key=object_key)
     driver.quit()
     print("Crawling completed.")
     
