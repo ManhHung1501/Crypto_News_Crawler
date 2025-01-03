@@ -7,7 +7,7 @@ from crawler import (coindesk,cointelegraph,cryptoslate,
     decrypt, bankless, beincrypto, coingape, unchainedcrypto,
     utoday, cryptoflies, nftgators, globalcryptopress, crypto_news,
     ambcrypto, turnmycoin, holder_io, coinpedia, nftevening, buildoncronos,
-    droomdroom, blockchainalpha, nonfungible, theblockcrypto)
+    droomdroom, blockchainalpha, nonfungible, theblockcrypto, dailycoin)
 from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators, DroomDroom, NonFungible
 
 
@@ -32,6 +32,11 @@ with DAG(
     catchup=False,
     max_active_tasks=3,
 ) as dag:
+    crawl_dailycoin_task = PythonOperator(task_id='crawl_dailycoin',
+                                python_callable=dailycoin.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
     crawl_blockchainalpha_task = PythonOperator(task_id='crawl_blockchainalpha',
                                 python_callable=blockchainalpha.incremental_crawl_articles,
                                 provide_context=True
