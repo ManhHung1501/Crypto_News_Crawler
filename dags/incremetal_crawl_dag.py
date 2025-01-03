@@ -7,7 +7,7 @@ from crawler import (coindesk,cointelegraph,cryptoslate,
     decrypt, bankless, beincrypto, coingape, unchainedcrypto,
     utoday, cryptoflies, nftgators, globalcryptopress, crypto_news,
     ambcrypto, turnmycoin, holder_io, coinpedia, nftevening, buildoncronos,
-    droomdroom, blockchainalpha, nonfungible)
+    droomdroom, blockchainalpha, nonfungible, theblockcrypto)
 from crawler_constants.crawl_constants import Coindesk, Cointelegraph, NewsBitcoin, Cryptoflies, Nftgators, DroomDroom, NonFungible
 
 
@@ -32,6 +32,31 @@ with DAG(
     catchup=False,
     max_active_tasks=3,
 ) as dag:
+    crawl_unchainedcrypto_task = PythonOperator(task_id='crawl_unchainedcrypto',
+                                python_callable=unchainedcrypto.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_bankless_task = PythonOperator(task_id='crawl_bankless',
+                                python_callable=bankless.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_coinpedia_task = PythonOperator(task_id='crawl_coinpedia',
+                                python_callable=coinpedia.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_decrypt_task = PythonOperator(task_id='crawl_decrypt',
+                                python_callable=decrypt.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_theblockcrypto_task = PythonOperator(task_id='crawl_theblockcrypto',
+                                python_callable=theblockcrypto.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
     crawl_utoday_task = PythonOperator(task_id='crawl_utoday',
                                 python_callable=utoday.incremental_crawl_articles,
                                 provide_context=True
@@ -76,6 +101,34 @@ with DAG(
                                 python_callable=cryptoslate.incremental_crawl_articles,
                                 provide_context=True
                                 )
+    
+    with TaskGroup(group_id=f"Group_Crawler_Nftgators") as task_nftgators:
+        previous_task = None
+        for category in Nftgators.categories:
+            crawl_nftgators_task = PythonOperator(task_id=f'crawl_nftgators_{category}',
+                                        python_callable=nftgators.incremental_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_nftgators_task
+            previous_task = crawl_nftgators_task
+
+    with TaskGroup(group_id=f"Group_Crawler_NewsBitcoin") as task_newsbitcoin:
+        previous_task = None
+        for category in NewsBitcoin.categories:
+            crawl_newsbitcoin_task = PythonOperator(task_id=f'crawl_newsbitcoin_{category}',
+                                        python_callable=newsbitcoin.incremental_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'category': category
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_newsbitcoin_task
+            previous_task = crawl_newsbitcoin_task
 
     with TaskGroup(group_id=f"Group_Crawler_Cointelegraph") as task_cointelegraph:
         previous_task = None

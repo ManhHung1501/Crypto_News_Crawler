@@ -7,7 +7,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -51,7 +51,6 @@ def handle_cookie_consent(driver):
     except TimeoutException:
         print("No cookies prompt displayed.")
 
-
 # Get detail content for article
 def get_detail_article(articles):
     for article in articles:
@@ -82,7 +81,6 @@ def get_detail_article(articles):
         
         driver.quit()
     return articles
-
 
 def full_crawl_articles():
     driver = setup_driver()
@@ -167,6 +165,78 @@ def full_crawl_articles():
 
     driver.quit()
     
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+def incremental_crawl_articles():
+    driver = setup_driver()
+    
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/theblockcrypto/theblockcrypto_initial_batch_'
+    STATE_FILE = f'web_crawler/theblockcrypto/theblockcrypto_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    
+    URL = f"https://www.theblock.co/latest?start=0"
+    print(f"Crawling URL: {URL}")
+
+    # Open the URL
+    driver.get(URL)
+
+    # Wait for the articles to load initially
+    wait_for_page_load(driver,"div.articles")
+    handle_cookie_consent(driver)
+    
+    articles_data = []
+    complete = False
+    while not complete:
+        articles = driver.find_element(By.CSS_SELECTOR, "div.articles").find_elements(By.CSS_SELECTOR, "div.articleCard__content")
+        for article in articles:
+            try:
+                # Extract title
+                article_url = article.find_element(By.CSS_SELECTOR, "a.appLink.articleCard__link").get_attribute("href")
+                article_id = generate_url_hash(article_url)
+                if article_id in last_crawled:
+                    articles_data = get_detail_article(articles=articles_data)
+                    object_key = f'web_crawler/theblockcrypto/theblockcrypto_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    complete = True
+                    break
+                
+                date_element = article.find_element(By.CSS_SELECTOR, "div.meta__wrapper")
+                date_text = date_element.text.split("•")[0].strip()
+                # Add the article data to the list
+                articles_data.append({
+                    "id": article_id,
+                    "title": article.find_element(By.CSS_SELECTOR, "h2.articleCard__headline span").text,
+                    "url": article_url,
+                    "published_at": parse_date(date_text),
+                    "source": "theblockcrypto.com"
+                })
+                
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+            
+        
+        try:
+            # Find the "Next" button
+            next_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "li.page-item a.page-link[aria-label='Go to next page']"))
+            )
+            if next_button.is_displayed() and next_button.is_enabled():
+                driver.execute_script("arguments[0].scrollIntoView(true);", next_button)
+                print(f"Navigated to the next page {next_button.get_attribute('href')}")
+                driver.execute_script("arguments[0].click();", next_button)           
+            else:
+                print("Next button is disabled or hidden.")
+        except NoSuchElementException:
+            # Handle the case where the "Next" button is not present
+            print("No 'Next' button found. End of pages.")
+            break
+        except Exception:
+            # Handle the case where the element is visible but cannot be clicked
+            print("Unable to click the 'Next' button. It might be disabled.")
+            break
+                
+        # Wait for new articles to load
+        time.sleep(random.uniform(2, 4))
+        
+    driver.quit()
+    print("Crawling completed.")

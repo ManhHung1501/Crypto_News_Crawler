@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -149,7 +149,92 @@ def full_crawl_articles():
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
+def incremental_crawl_articles():
+    driver = setup_driver()
     
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+    minio_client = connect_minio()
+ 
+    prefix = f'web_crawler/coinpedia/coinpedia_initial_batch_'
+    STATE_FILE = f'web_crawler/coinpedia/coinpedia_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    URL = f"https://coinpedia.org/news/"
+    print(f"Crawling URL: {URL}")
+
+    # Open the URL
+    driver.get(URL)
+
+    # Wait for the articles to load initially
+    wait_for_page_load(driver, 'div.container-wrapper')
+    close_ad_btn = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "span.close-ad-btn"))
+            )
+    close_ad_btn.click()
+
+
+    articles_data = []
+    crawled_id = set()
+    previous_news = 0 
+    count = 0
+    complete = False
+    while not complete:
+        # Get all the articles on the current page
+        container = driver.find_element(By.CSS_SELECTOR, "div.container-wrapper")
+
+        # Find all the articles within the container
+        data_div = container.find_elements(By.CSS_SELECTOR, "div.post-details")
+        current_news = len(data_div)
+        if current_news == previous_news:
+            if count == 5:
+                break
+            count += 1
+            time.sleep(3)
+        else:
+            count = 0
+        articles = data_div[previous_news: current_news]
+        print(f"Crawling news from {previous_news} to {current_news} news")
+        for article in articles:
+            try:
+                # Extract title
+                title_element = article.find_element(By.CSS_SELECTOR, "h2.post-title a")
+                article_url = title_element.get_attribute("href")
+                article_id = generate_url_hash(article_url)
+                if article_id in crawled_id:
+                    continue
+                # Skip if the article URL has already been processed
+                if article_id in last_crawled:
+                    articles_data = get_detail_article(articles=articles_data)
+                    object_key = f'web_crawler/coinpedia/coinpedia_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    complete = True
+                    break
+                articles_data.append({
+                    "id": article_id,
+                    "title": title_element.text.strip(),
+                    "url": article_url,
+                    "source": "coinpedia.org"
+                })
+                crawled_id.add(article_id)
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+            
+        
+        # Click the "More stories" button to load more articles
+        try:
+            load_more_button = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "load-more-archives"))
+            )
+            if load_more_button.is_displayed() and load_more_button.is_enabled():
+                driver.execute_script("arguments[0].scrollIntoView(true);", load_more_button)
+                driver.execute_script("arguments[0].click();", load_more_button)  
+                previous_news = current_news
+            else:
+                print("No more articles to load or button not clickable.")
+                break
+                
+        except Exception as e:
+            print("Error in click more: ", e)
+            break
+        time.sleep(random.uniform(2, 4))
+
+    driver.quit()
+    print("Crawling completed.")

@@ -74,12 +74,12 @@ def get_detail_article(articles):
             wait_for_page_load(driver, "div.article__body")
         
             try:
-                published_at = parse_date(driver.find_element(By.CSS_SELECTOR ,".sc-haIJcD").text.strip())
+                published_at = parse_date(driver.find_element(By.CSS_SELECTOR ,".sc-gjvBwi").text.strip())
             except NoSuchElementException:
                 print("can't get time_element")
             
             try:
-                title = driver.find_element(By.CSS_SELECTOR, ".sc-ePrEVR").text.strip()
+                title = driver.find_element(By.CSS_SELECTOR, ".sc-jDlNXm").text.strip()
             except NoSuchElementException:
                 print("can't get title_element")    
             
@@ -208,7 +208,7 @@ def incremental_crawl_articles(category):
     minio_client = connect_minio()
  
     prefix = f'web_crawler/news.bitcoin/{category}/news.bitcoin_{category}_initial_batch_'
-    STATE_FILE = f'last_crawled/newsbitcoin/{category}.json'
+    STATE_FILE = f'web_crawler/news.bitcoin/{category}/news.bitcoin_{category}_incremental_crawled_at_'
     last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
     URL = f"https://news.bitcoin.com/category/{category}/"
     print(f"Crawling URL: {URL}")
@@ -234,9 +234,8 @@ def incremental_crawl_articles(category):
                 
                 if article_id in last_crawled:
                     articles_data = get_detail_article(articles=articles_data)
-                    object_key = f'web_crawler/news.bitcoin/{category}/news.bitcoin_{category}_incremental_crawled_at_{date.today()}.json'
+                    object_key = f'web_crawler/news.bitcoin/{category}/news.bitcoin_{category}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
-                    save_last_crawled([article['id'] for article in articles_data[:5]], STATE_FILE= STATE_FILE)
                     complete = True
                     break
                

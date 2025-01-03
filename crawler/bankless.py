@@ -8,7 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -170,10 +170,87 @@ def full_crawl_articles():
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
     driver.quit()
-    
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
 
+def incremental_crawl_articles():
+    driver = setup_driver()
+    minio_client = connect_minio()
+    prefix = f'web_crawler/bankless/bankless_initial_batch_'
+    STATE_FILE = f'web_crawler/bankless/bankless_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    URL = f"https://www.bankless.com/read"
+    print(f"Crawling URL: {URL}")
+
+    # Open the URL
+    driver.get(URL)
+    handle_cookie_consent(driver)
+
+    # Wait for the articles to load initially
+    wait_for_page_load(driver,"div.contentList")
+    crawled_id = set()
+
+    articles_data = []
+    previous_news = 0
+    count = 0
+    complete = False
+    while not complete:
+        
+        data_div = driver.find_element(By.CSS_SELECTOR, "div.contentList").find_elements(By.CSS_SELECTOR, "a.articleBlockSmall")
+        current_news = (len(data_div))
+        if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
+            time.sleep(3)
+        else:
+            count = 0
+        articles = data_div[previous_news:current_news]
+        print( f"Crawling news from {previous_news} to {current_news} news")
+        for article in articles:
+            try:
+                # Extract title
+                article_url = article.get_attribute("href")
+                article_id = generate_url_hash(article_url)
+                # Skip if the article URL has already been processed
+                if article_id in crawled_id:
+                    continue
+
+                if article_id in last_crawled:
+                    articles_data = get_detail_article(articles=articles_data)
+                    object_key = f'web_crawler/bankless/bankless_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    complete = True
+                    break
+                articles_data.append({
+                    "id": article_id,
+                    "url": article_url,
+                    "title": article.find_element(By.CSS_SELECTOR, ".content .title").text.strip(),
+                    "source": "bankless.com"
+                })
+                crawled_id.add(article_id)
+                
+            except Exception as e:
+                print(f"Error extracting data for an article: {e}")
+            
+        
+        # Click the "More stories" button to load more articles
+        try:
+            # Wait for the "next page" button
+            load_more_button = WebDriverWait(driver, 10,poll_frequency=0.5).until(
+                EC.element_to_be_clickable((By.CLASS_NAME, "loadMoreFilterBtn"))
+            )
+            driver.execute_script("arguments[0].click();", load_more_button)
+            previous_news = current_news
+        except NoSuchElementException as e:
+            print(f"No 'Load More' button found or could not click on")
+            break
+        except Exception as e:
+            print("Error in click more: ", e)
+            break
+                
+        # Wait for new articles to load
+        time.sleep(random.uniform(2, 4))
+
+    driver.quit()
+    print("Crawling completed.")
 
 
