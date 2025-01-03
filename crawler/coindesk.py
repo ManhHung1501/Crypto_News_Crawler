@@ -150,7 +150,7 @@ def incremental_crawl_articles(topic):
                         articles_data = get_detail_article(
                             articles=articles_data
                         )
-                        object_key = f'web_crawler/coindesk/{topic}/coindesk_{topic}_incremental_crawled_at_{date.today()}.json'
+                        object_key = f'web_crawler/coindesk/{topic}/coindesk_{topic}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
                         upload_json_to_minio(
                             json_data=articles_data, object_key=object_key
                         )

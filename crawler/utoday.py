@@ -1,7 +1,7 @@
 import time, random, requests
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
-from datetime import datetime, date
+from datetime import datetime
 from selenium.webdriver.common.by import By
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
 from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled,get_last_crawled
@@ -195,7 +195,7 @@ def incremental_crawl_articles():
 
                 if article_id in last_crawled:
                     articles_data = get_detail_article(articles=articles_data)
-                    object_key = f'web_crawler/u.today/u.today_incremental_crawled_at_{date.today()}.json'
+                    object_key = f'web_crawler/u.today/u.today_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
                     break
