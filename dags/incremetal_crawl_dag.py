@@ -32,6 +32,25 @@ with DAG(
     catchup=False,
     max_active_tasks=3,
 ) as dag:
+    crawl_cryptoslate_task = PythonOperator(task_id='crawl_cryptoslate',
+                                python_callable=cryptoslate.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    with TaskGroup(group_id=f"Group_Crawler_Cointelegraph") as task_cointelegraph:
+        previous_task = None
+        for topic in Cointelegraph.topics:
+            crawl_cointelegraph_task = PythonOperator(task_id=f'crawl_cointelegraph_{topic}',
+                                        python_callable=cointelegraph.incremental_crawl_articles,
+                                        provide_context=True,
+                                        op_kwargs={
+                                                    'tag': topic
+                                                }
+                                        )
+            if previous_task:
+                previous_task >> crawl_cointelegraph_task
+            previous_task = crawl_cointelegraph_task
+
     with TaskGroup(group_id=f"Group_Crawler_Coindesk") as task_coindesk:
         previous_task = None
         for topic in Coindesk.topics:

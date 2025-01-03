@@ -159,7 +159,7 @@ def incremental_crawl_articles(tag):
     prefix = f'web_crawler/cointelegraph/{tag}/cointelegraph_{tag}_initial_batch_'
     STATE_FILE = f'last_crawled/cointelegraph/{tag}.json'
     last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
-    URL = f"https://www.cointelegraph.com/{tag}"
+    URL = f"https://www.cointelegraph.com/tags/{tag}"
     print(f"Crawling URL: {URL}")
 
     # Open the URL
@@ -176,85 +176,65 @@ def incremental_crawl_articles(tag):
     previous_news = 0
     complete = False
     while not complete:
-        try:
-            # Dynamically re-locate articles to avoid stale element issues
-            data_div = driver.find_element(
-                By.CSS_SELECTOR, "div.post-card-inline__content"
-            ).find_elements(By.CSS_SELECTOR, "div.flex.gap-4")
-            current_news = len(data_div)
-            if current_news == previous_news:
-                time.sleep(3)
-            articles = data_div[previous_news : current_news]
-            print(
-                f"Crawling news from {previous_news} to {current_news} news of {tag}"
-            )
+        # Dynamically re-locate articles to avoid stale element issues
+        data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-card-inline__content")
+        current_news = len(data_div)
+        if current_news == previous_news:
+            time.sleep(3)
+        articles = data_div[previous_news : current_news]
+        print(f"Crawling news from {previous_news} to {current_news} news of {tag}")
 
-            for article in articles:
-                try:
-                    # Extract the article data
-                    title_element = article.find_element(
-                        By.CSS_SELECTOR, "a.text-color-charcoal-900"
-                    )
-                    article_url = title_element.get_attribute("href")
-                    article_id = generate_url_hash(article_url)
-
-                    if article_id in crawled_id:
-                        continue
-
-                    if article_id in last_crawled:
-                        articles_data = get_detail_article(
-                            articles=articles_data
-                        )
-                        object_key = f'web_crawler/cointelegraph/{tag}/cointelegraph_{tag}_incremental_crawled_at_{date.today()}.json'
-                        upload_json_to_minio(
-                            json_data=articles_data, object_key=object_key
-                        )
-                        complete = True
-                        save_last_crawled([article['id'] for article in articles_data[:5]], STATE_FILE= STATE_FILE)
-                        break
-
-                    title = title_element.text
-                    # Add the article data to the list
-                    articles_data.append(
-                        {
-                            "id": article_id,
-                            "title": title,
-                            "url": article_url,
-                            "source": "cointelegraph.com",
-                        }
-                    )
-                    crawled_id.add(article_id)
-
-                except Exception as e:
-                    print(f"Error extracting data for an article: {e}")
-                    
-
-            # Click the "More stories" button to load more articles
+        for article in articles:
             try:
-                more_button = driver.find_element(
-                    By.CSS_SELECTOR,
-                    "button.bg-white.hover\\:opacity-80.cursor-pointer",
-                )
-                ActionChains(driver).move_to_element(more_button).click().perform()
-                # print("Clicked 'More stories' button successfully.")
+                # Extract the article data
+                title_element = article.find_element(By.CSS_SELECTOR, "a.post-card-inline__title-link")
+                article_url = title_element.get_attribute("href")
+                article_id = generate_url_hash(article_url)
 
-                previous_news = current_news
-            except NoSuchElementException:
-                print(
-                    f"No 'More stories' button found"
+                if article_id in crawled_id:
+                    continue
+
+                if article_id in last_crawled:
+                    articles_data = get_detail_article(articles=articles_data)
+                    object_key = f'web_crawler/cointelegraph/{tag}/cointelegraph_{tag}_incremental_crawled_at_{date.today()}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    save_last_crawled([article['id'] for article in articles_data[:5]], STATE_FILE= STATE_FILE)
+                    complete = True
+                    break
+                
+                date_element = article.find_element(By.CSS_SELECTOR, "time")
+                published_at = date_element.get_attribute("datetime")
+
+                # Add the article data to the list
+                articles_data.append(
+                    {
+                        "id": article_id,
+                        "title": title_element.text,
+                        "published_at": f"{published_at} 00:00:00",
+                        "url": article_url,
+                        "source": "cointelegraph.com",
+                    }
                 )
-                break
+                crawled_id.add(article_id)
 
             except Exception as e:
-                print(f"Error clicking 'More stories' button: {e}")
+                print(f"Error extracting data for an article: {e}")
+
+        retries = 3        
+        retries_count = 0
+        try:
+            driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
+            print(f"Process from {previous_news} to {current_news}")
+            previous_news = current_news
+            retries_count = 0
+        except IndexError:
+            print(f"Get Error in load more news retries {retries_count}/{retries}")
+            retries_count+=1
+            if retries_count > retries:
                 break
 
             # Wait for new articles to load
             time.sleep(random.uniform(2, 4))
-
-        except Exception as e:
-            print(f"Error during crawling loop: {e}")
-            break
 
     # Ensure the driver quits properly
     driver.quit()

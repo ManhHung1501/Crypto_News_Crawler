@@ -73,7 +73,7 @@ def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
     try:
         file_path = os.path.join(project_dir, STATE_FILE)
         with open(file_path, 'r') as f:
-            return json.load(f).get("last_crawled", [])
+            last_crawled = json.load(f).get("last_crawled", [])
     except FileNotFoundError:
         # List objects with the given prefix
         objects = minio_client.list_objects(bucket, prefix=prefix)
@@ -101,5 +101,5 @@ def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
 
         last_crawled =  [artc['id'] for artc in data]
         save_last_crawled(last_crawled, file_path)
-        print(f'Get last crawl fom initial crawled: {last_crawled}')
-        return last_crawled
+    print(f'Last crawled id: {last_crawled}')
+    return last_crawled
