@@ -72,11 +72,6 @@ with DAG(
                                 provide_context=True
                                 )
 
-    crawl_bankless_task = PythonOperator(task_id='crawl_bankless',
-                                python_callable=bankless.incremental_crawl_articles,
-                                provide_context=True
-                                )
-
     crawl_coinpedia_task = PythonOperator(task_id='crawl_coinpedia',
                                 python_callable=coinpedia.incremental_crawl_articles,
                                 provide_context=True
