@@ -40,7 +40,7 @@ with DAG(
     with TaskGroup(group_id=f"Group_Crawler_Cointelegraph") as task_cointelegraph:
         previous_task = None
         for tag in Cointelegraph.tags:
-            crawl_cointelegraph_task = PythonOperator(task_id=f'crawl_cointelegraph_{topic}',
+            crawl_cointelegraph_task = PythonOperator(task_id=f'crawl_cointelegraph_{tag}',
                                         python_callable=cointelegraph.incremental_crawl_articles,
                                         provide_context=True,
                                         op_kwargs={
