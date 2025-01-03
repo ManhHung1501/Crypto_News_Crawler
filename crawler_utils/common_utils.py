@@ -62,9 +62,8 @@ def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
     for obj in objects:
         key = obj.object_name
         # Match files with the dynamic prefix and extract the batch number
-        date_str = key.split('_')[-1].replace('.json','')
-        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-        files.append((key, date_obj))
+        timestamp = key.split('_')[-1].replace('.json','')
+        files.append((key, timestamp))
     
     if not files:
         print("No incremental files found.")
