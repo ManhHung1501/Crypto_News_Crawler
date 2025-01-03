@@ -2,9 +2,7 @@ import os
 import hashlib
 import re
 import json
-from datetime import datetime, timedelta
-from dateutil import parser
-from dateutil.relativedelta import relativedelta
+from datetime import datetime
 
 def get_project_path():
     current_path = os.path.abspath(__file__)
@@ -58,26 +56,19 @@ def get_last_initial_crawled(minio_client, bucket, prefix):
     print(f'Last ID: {last_id}, Last Batch: {last_batch}')
     return last_id, last_batch
 
-def save_last_crawled(new_urls, STATE_FILE):
-    save_path = os.path.join(project_dir, STATE_FILE)
-
-    # Ensure the directory exists
-    directory = os.path.dirname(save_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    with open(save_path, 'w') as f:
-        json.dump({"last_crawled": new_urls}, f)
-
 def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
-    try:
-        file_path = os.path.join(project_dir, STATE_FILE)
-        with open(file_path, 'r') as f:
-            last_crawled = json.load(f).get("last_crawled", [])
-    except FileNotFoundError:
-        # List objects with the given prefix
+    objects = minio_client.list_objects(bucket, prefix=STATE_FILE)
+    files = []
+    for obj in objects:
+        key = obj.object_name
+        # Match files with the dynamic prefix and extract the batch number
+        date_str = key.split('_')[-1].replace('.json','')
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        files.append((key, date_obj))
+    
+    if not files:
+        print("No incremental files found.")
         objects = minio_client.list_objects(bucket, prefix=prefix)
-        files = []
 
         for obj in objects:
             key = obj.object_name
@@ -85,21 +76,21 @@ def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
             match = re.search(rf'{prefix}(\d+)', key)
             if match:
                 files.append((key, int(match.group(1))))
-        
-        if not files:
-            last_crawled =  []
 
         # Find the latest file based on the batch number
-        latest_file = min(files, key=lambda x: x[1])[0]
+        latest_file = min(files, key=lambda x: x[1])
+    else:
+        latest_file = max(files, key=lambda x: x[1])
+    
+    print(f'Read Last ID from : {latest_file[0]}')
+    # Retrieve the content of the latest file
+    response = minio_client.get_object(bucket, latest_file[0])
+    file_content = response.read().decode('utf-8')
+    
+    # Parse the JSON content
+    data = json.loads(file_content)[:5] 
 
-        # Retrieve the content of the latest file
-        response = minio_client.get_object(bucket, latest_file)
-        file_content = response.read().decode('utf-8')
-        
-        # Parse the JSON content
-        data = json.loads(file_content)[:5] 
-
-        last_crawled =  [artc['id'] for artc in data]
-        save_last_crawled(last_crawled, file_path)
+    last_crawled =  [artc['id'] for artc in data]
+      
     print(f'Last crawled id: {last_crawled}')
     return last_crawled

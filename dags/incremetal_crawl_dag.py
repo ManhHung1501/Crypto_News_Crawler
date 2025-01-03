@@ -32,6 +32,41 @@ with DAG(
     catchup=False,
     max_active_tasks=3,
 ) as dag:
+    crawl_coingape_task = PythonOperator(task_id='crawl_coingape',
+                                python_callable=coingape.incremental_crawl_articles,
+                                provide_context=True
+                                )
+    
+    crawl_ambcrypto_task = PythonOperator(task_id='crawl_ambcrypto',
+                                python_callable=ambcrypto.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_beincrypto_task = PythonOperator(task_id='crawl_beincrypto',
+                                python_callable=beincrypto.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_cryptonews_task = PythonOperator(task_id='crawl_cryptonews',
+                                python_callable=cryptonews.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_newsbtc_task = PythonOperator(task_id='crawl_newsbtc',
+                                python_callable=newsbtc.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_blockonomi_task = PythonOperator(task_id='crawl_blockonomi',
+                                python_callable=blockonomi.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
+    crawl_bitcoinist_task = PythonOperator(task_id='crawl_bitcoinist',
+                                python_callable=bitcoinist.incremental_crawl_articles,
+                                provide_context=True
+                                )
+    
     crawl_cryptoslate_task = PythonOperator(task_id='crawl_cryptoslate',
                                 python_callable=cryptoslate.incremental_crawl_articles,
                                 provide_context=True

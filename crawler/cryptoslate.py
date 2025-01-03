@@ -1,10 +1,8 @@
-import time, random, requests
+import time, requests
 from requests.exceptions import Timeout
 from datetime import datetime, date
-from selenium.webdriver.common.by import By
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash, get_last_crawled,save_last_crawled, get_last_initial_crawled
-from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
+from crawler_utils.common_utils import generate_url_hash, get_last_crawled, get_last_initial_crawled
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from bs4 import BeautifulSoup
 
@@ -89,11 +87,10 @@ def get_detail_article(articles):
     return articles
 
 def incremental_crawl_articles():
-    batch_size = 1000
     minio_client = connect_minio()
     
     prefix = f'web_crawler/cryptoslate/cryptoslate_initial_batch_'
-    STATE_FILE = f'last_crawled/cryptoslate/cryptoslate.json'
+    STATE_FILE = f'web_crawler/cryptoslate/cryptoslate_incremental_crawled_at_'
     last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
 
     articles_data = []
@@ -128,7 +125,6 @@ def incremental_crawl_articles():
                         articles_data = get_detail_article(articles=articles_data)
                         object_key = f'web_crawler/cryptoslate/cryptoslate_incremental_crawled_at_{date.today()}.json'
                         upload_json_to_minio(json_data=articles_data, object_key=object_key)
-                        save_last_crawled([article['id'] for article in articles_data[:5]], STATE_FILE= STATE_FILE)
                         complete = True
                         break
                     

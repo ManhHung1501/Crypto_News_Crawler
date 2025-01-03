@@ -1,15 +1,13 @@
-import time, random, requests, re
+import time, random, re
 from bs4 import BeautifulSoup
-from requests.exceptions import Timeout
-from datetime import datetime
+from datetime import datetime, date
 from dateutil.relativedelta import relativedelta
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, project_dir
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled,save_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -204,13 +202,14 @@ def full_crawl_articles(category):
     driver.quit()
  
 
-def full_crawl_articles(category):
+def incremental_crawl_articles(category):
     driver = setup_driver()
     
     minio_client = connect_minio()
  
     prefix = f'web_crawler/news.bitcoin/{category}/news.bitcoin_{category}_initial_batch_'
-    last_crawled_id, current_batch = get_last_initial_crawled(minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET,prefix=prefix)
+    STATE_FILE = f'last_crawled/newsbitcoin/{category}.json'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
     URL = f"https://news.bitcoin.com/category/{category}/"
     print(f"Crawling URL: {URL}")
 
@@ -218,39 +217,36 @@ def full_crawl_articles(category):
     driver.get(URL)
 
     # Wait for the articles to load initially
-    wait_for_page_load(driver,"div.sc-iDJa-DH.fTIdPq a.sc-gtMAan.eBbAic")
-    
-    not_crawled = last_crawled_id is None
+    wait_for_page_load(driver,"div.sc-gtMAan.jyZwKo a.sc-iDJa-DH.cjkVqL")
+
     articles_data = []
-    batch_size = 100
-    while True:
+    complete = False
+    while not complete:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(1)
 
-        articles = driver.find_elements(By.CSS_SELECTOR, "div.sc-iDJa-DH.fTIdPq a.sc-gtMAan.eBbAic")
+        articles = driver.find_elements(By.CSS_SELECTOR, "div.sc-gtMAan.jyZwKo a.sc-iDJa-DH.cjkVqL")
         for article in articles:
             try:
                 # Extract title
                 article_url = article.get_attribute("href")
                 article_id = generate_url_hash(article_url)
-                # Skip if the article URL has already been processed
-                if not not_crawled and article_id == last_crawled_id:
-                    not_crawled = True
-                    continue
-                if not_crawled:
-                    # Add the article data to the list
-                    articles_data.append({
-                        "id": article_id,
-                        "url": article_url,
-                        "source": "news.bitcoin.com"
-                    })
-                if len(articles_data) == batch_size:
+                
+                if article_id in last_crawled:
                     articles_data = get_detail_article(articles=articles_data)
-                    new_batch = current_batch + batch_size
-                    object_key = f'{prefix}{new_batch}.json'
-                    upload_json_to_minio(json_data=articles_data,object_key=object_key)
-                    current_batch = new_batch
-                    articles_data = []
+                    object_key = f'web_crawler/news.bitcoin/{category}/news.bitcoin_{category}_incremental_crawled_at_{date.today()}.json'
+                    upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    save_last_crawled([article['id'] for article in articles_data[:5]], STATE_FILE= STATE_FILE)
+                    complete = True
+                    break
+               
+                # Add the article data to the list
+                articles_data.append({
+                    "id": article_id,
+                    "url": article_url,
+                    "source": "news.bitcoin.com"
+                })
+               
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
             
@@ -261,13 +257,8 @@ def full_crawl_articles(category):
                 next_button = WebDriverWait(driver, 10).until(
                     EC.element_to_be_clickable((By.XPATH, '//a[contains(@href, "page") and contains(text(), ">")]'))
                 )
-
-               
                 driver.execute_script("arguments[0].click();", next_button)
-
                 print(f"Scraping page: {driver.current_url}")
-                
-            
         except NoSuchElementException as e:
             print(f"No 'More stories' button found or could not click on")
             break
@@ -278,11 +269,5 @@ def full_crawl_articles(category):
         # Wait for new articles to load
         time.sleep(random.uniform(2, 4))
         
-    if articles_data:
-        articles_data = get_detail_article(articles=articles_data)
-        
-        object_key = f'{prefix}{current_batch + len(articles_data)}.json'
-        upload_json_to_minio(json_data=articles_data,object_key=object_key)
-
     driver.quit()
-    
+    print("Crawling completed.")

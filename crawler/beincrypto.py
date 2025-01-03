@@ -1,15 +1,12 @@
-import time, random, requests, re
+import time
 from bs4 import BeautifulSoup
-from requests.exceptions import Timeout
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
+from datetime import datetime, date
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled,get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -35,7 +32,6 @@ def get_total_page():
         print(f"Error: {e}")
     finally:
         driver.quit()
-
 
 def handle_cookie_consent(driver):
     """
@@ -90,7 +86,6 @@ def get_detail_article(articles):
         article['published_at'] = published_at
         driver.quit()
     return articles
-
 
 def full_crawl_articles():
     minio_client = connect_minio()
@@ -156,11 +151,58 @@ def full_crawl_articles():
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
-    
-    
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+def incremental_crawl_articles():
+    minio_client = connect_minio()
+    prefix = f'web_crawler/beincrypto/beincrypto_initial_batch_'
+    STATE_FILE = f'web_crawler/beincrypto/beincrypto_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
 
+    # Wait for the articles to load initially
+    articles_data = []
+    page = 1 
+    complete = False
+    while not complete:
+        driver = setup_driver()
+        URL = f"https://beincrypto.com/news/page/{page}/"
+        print(f"Crawling URL: {URL}")
+        try:
+            # Open the URL
+            driver.get(URL)
+            wait_for_page_load(driver,"div.content")
+            articles = driver.find_element(By.CSS_SELECTOR, "div.content").find_element(By.CSS_SELECTOR, "div.flex.flex-wrap").find_elements(By.XPATH,'//div[@data-el="bic-c-news-big"]')
+
+            for article in articles:
+                try:
+                    # Extract title
+                    title_element = article.find_element(By.CSS_SELECTOR, 'h5.h-full a')
+                    article_url = title_element.get_attribute("href")
+                    article_id = generate_url_hash(article_url)
+                    # Skip if the article URL has already been processed
+
+                    if article_id in last_crawled:
+                        articles_data = get_detail_article(articles=articles_data)
+                        object_key = f'web_crawler/beincrypto/beincrypto_incremental_crawled_at_{date.today()}.json'
+                        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                        complete = True
+                        break
+                    articles_data.append({
+                        "id": article_id,
+                        "url": article_url,
+                        "title": title_element.text.strip(),
+                        "source": "beincrypto.com"
+                    })
+    
+                  
+                except Exception as e:
+                    print(f"Error extracting data for an article: {e}")
+            print( f"Complete Crawled {len(articles)} on page {page}")  
+            page +=1
+        except Exception as e:
+            print(f"Error crawing {URL}")
+            time.sleep(5)
+
+    driver.quit()  
+    print("Crawling completed.")
+    
 
 

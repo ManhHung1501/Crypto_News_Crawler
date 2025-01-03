@@ -11,7 +11,7 @@ from selenium.common.exceptions import (NoSuchElementException,
             ElementClickInterceptedException, TimeoutException, 
             StaleElementReferenceException)
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash, get_last_crawled, save_last_crawled, get_last_initial_crawled, project_dir
+from crawler_utils.common_utils import generate_url_hash, get_last_crawled, get_last_initial_crawled
 from crawler_utils.chrome_driver_utils import setup_driver
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from crawler_constants.crawl_constants import Coindesk
@@ -105,7 +105,7 @@ def incremental_crawl_articles(topic):
 
     
     prefix = f'web_crawler/coindesk/{topic}/coindesk_{topic}_initial_batch_'
-    STATE_FILE = f'last_crawled/coindesk/{topic}.json'
+    STATE_FILE = f'web_crawler/coindesk/{topic}/coindesk_{topic}_incremental_crawled_at_'
     last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
     URL = f"https://www.coindesk.com/{topic}"
     print(f"Crawling URL: {URL}")
@@ -155,7 +155,6 @@ def incremental_crawl_articles(topic):
                             json_data=articles_data, object_key=object_key
                         )
                         complete = True
-                        save_last_crawled([article['id'] for article in articles_data[:5]], STATE_FILE= STATE_FILE)
                         break
 
                     title = title_element.text

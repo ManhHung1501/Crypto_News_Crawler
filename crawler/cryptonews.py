@@ -1,17 +1,12 @@
-import time, random, requests, re
+import time
 from bs4 import BeautifulSoup
-import pandas as pd
-from requests.exceptions import Timeout
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from urllib.parse import urlparse
+from datetime import datetime,date
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException, TimeoutException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, project_dir
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
@@ -78,7 +73,7 @@ def get_detail_article(articles):
                 for unwanted in article_content_div.select(unwanteds_card):
                     unwanted.decompose()
                 content = ' '.join(article_content_div.stripped_strings)
-            driver.quit()
+            
         except Exception as e:
             print(f"Error get data for URL {url}: {e}")
             time.sleep(2)
@@ -90,8 +85,8 @@ def get_detail_article(articles):
 
         article['content'] = content
         article['published_at'] =published_at
+        driver.quit()
     return articles
-
 
 def full_crawl_articles():
     minio_client = connect_minio()
@@ -159,9 +154,63 @@ def full_crawl_articles():
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
     driver.quit()
+
+def incremental_crawl_articles():
+    minio_client = connect_minio()
+    prefix = f'web_crawler/cryptonews/cryptonews_initial_batch_'
+    STATE_FILE = f'web_crawler/cryptonews/cryptonews_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    articles_data = []
+    page = 1
+    complete = False
+    while not complete:
+        driver = setup_driver()
+        if page == 1:
+            URL = f"https://cryptonews.com/news/"
+        else:
+            URL = f"https://cryptonews.com/news/page/{page}/"
+
+        print(f"Crawling URL: {URL}")
+        try:
+            # Open the URL
+            driver.get(URL)
+            wait_for_page_load(driver,'.archive-template-latest-news__wrap')
+
+            articles = driver.find_elements(By.CSS_SELECTOR, "div.archive-template-latest-news__wrap")
+            for article in articles:
+                try:
+                    article_element = article.find_element(By.CSS_SELECTOR, '.archive-template-latest-news')
+                    article_url = article_element.get_attribute("href")
+                    article_id = generate_url_hash(article_url)
+
+                    if article_id in last_crawled:
+                        articles_data = get_detail_article(articles=articles_data)
+                        object_key = f'web_crawler/cryptonews/cryptonews_incremental_crawled_at_{date.today()}.json'
+                        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                        complete = True
+                        break
+                    articles_data.append({
+                        "id": article_id,
+                        "title": article_element.find_element(By.CSS_SELECTOR, '.archive-template-latest-news__title').text,
+                        "url": article_url,
+                        "source": "cryptonews.com"
+                    })
+                   
+                except Exception as e:
+                    print(f"Error extracting data for an article: {e}")
+
+            
+            print(f'Complete crawled {len(articles)} from page {page}')
+            page += 1
+
+        except Exception as e:
+            print(f"Error in get data of page {page}: ", e)
+            time.sleep(10)
+
+    driver.quit()
+    print("Crawling completed.")
     
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+
+
     
     

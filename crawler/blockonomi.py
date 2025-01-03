@@ -1,10 +1,8 @@
-import time, random, requests
+import time, requests
 from requests.exceptions import Timeout
 from datetime import datetime, date
-from selenium.webdriver.common.by import By
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash, get_last_crawled,save_last_crawled, get_last_initial_crawled
-from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
+from crawler_utils.common_utils import generate_url_hash, get_last_crawled, get_last_initial_crawled
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from bs4 import BeautifulSoup
 
@@ -156,6 +154,67 @@ def full_crawl_articles():
         
         print(f"Uploaded final batch: {object_key}")
 
-# Run the crawling process
-if __name__ == "__main__":
-    full_crawl_articles()
+def incremental_crawl_articles():
+    minio_client = connect_minio()
+    
+    prefix = f'web_crawler/blockonomi/blockonomi_initial_batch_'
+    STATE_FILE = f'web_crawler/blockonomi/blockonomi_incremental_crawled_at_'
+    last_crawled = get_last_crawled(STATE_FILE=STATE_FILE, minio_client=minio_client, bucket=CRYPTO_NEWS_BUCKET, prefix=prefix)
+    
+    articles_data = []
+    crawled_id = set()
+    page = 1
+
+    complete = False
+    while not complete:
+        print(f'Crawling news on page {page}')
+        URL = f"https://blockonomi.com/all/page/{page}/"
+        
+        try:
+            # Fetch the HTML content
+            response = requests.get(URL, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Select the news-feed section and articles
+            news_feed = soup.select_one('section.block-wrap')
+            articles = news_feed.select("article.l-post div.content") if news_feed else []
+
+            for article in articles:
+                try:
+                    # Extract article title
+                    title_element = article.find('h2', class_='is-title')
+                    title = title_element.text.strip()
+
+                    # Extract article URL
+                    article_url = title_element.select_one('a')['href']
+                    article_id = generate_url_hash(article_url)
+
+                    if article_id in crawled_id:
+                        continue
+
+                    if article_id in last_crawled:
+                        articles_data = get_detail_article(articles=articles_data)
+                        object_key = f'web_crawler/blockonomi/blockonomi_incremental_crawled_at_{date.today()}.json'
+                        upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                        complete = True
+                        break
+                    articles_data.append({
+                        "id": article_id,
+                        "title": title,
+                        "published_at": datetime.fromisoformat(article.find('time', class_='post-date')['datetime'].strip()).strftime("%Y-%m-%d %H:%M:%S"),
+                        "url": article_url,
+                        "source": "blockonomi.com"
+                    })
+                    crawled_id.add(article_id)
+
+                except Exception as e:
+                    print(f"Error extracting data for {article_url}: {e}")
+            print(f"Total News Crawled After page {page} is {len(articles_data)}")
+            page += 1 
+        except requests.RequestException as e:
+            print(f"Error fetching page {page}: {e}")
+            time.sleep(10)
+
+    print("Crawling completed.")
+
