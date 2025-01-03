@@ -7,7 +7,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
-from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled,save_last_crawled
+from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
