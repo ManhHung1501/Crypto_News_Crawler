@@ -194,9 +194,9 @@ def incremental_crawl_articles(tag):
                 if article_id in crawled_id:
                     continue
 
-                if article_id in last_crawled and article_id != 'f6e56a793bad92b12f307a1562d4c4e3':
+                if article_id in last_crawled:
                     articles_data = get_detail_article(articles=articles_data)
-                    object_key = f'web_crawler/cointelegraph/{tag}/cointelegraph_{tag}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                    object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
                     break
