@@ -87,7 +87,7 @@ def get_last_crawled(STATE_FILE, minio_client, bucket, prefix):
     file_content = response.read().decode('utf-8')
     
     # Parse the JSON content
-    data = json.loads(file_content)[:5] 
+    data = json.loads(file_content)[:15] 
 
     last_crawled =  [artc['id'] for artc in data]
       
