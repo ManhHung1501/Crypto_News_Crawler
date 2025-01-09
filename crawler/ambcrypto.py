@@ -30,7 +30,11 @@ def get_detail_article(articles):
                     time.sleep(5)
                 
             soup = BeautifulSoup(response.content, "html.parser")
-            published_at = soup.find("time", itemprop="datePublished")['datetime'].strip() + " 00:00:00"
+            meta_tag = soup.find('meta', {'property': 'article:published_time'})
+            if meta_tag:
+                dt = datetime.strptime(meta_tag['content'].strip(), "%Y-%m-%dT%H:%M:%S%z")
+                published_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+
             article_card = soup.find("div", class_="single-post-main-middle")
             if article_card:
                 unwanted_cards = ".post-nav, .ambcr-after-content_2, .ambcr-content_2, .ambcr-before-content_2, .single-post-share, .wp-caption"
