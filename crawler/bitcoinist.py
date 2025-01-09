@@ -2,7 +2,6 @@ import time, random, requests, re
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
 from datetime import datetime,timezone
-from dateutil.relativedelta import relativedelta
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -12,49 +11,6 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-# Function to convert relative time to a datetime object
-def convert_relative_time_to_datetime(relative_time_str):
-    relative_time_str = relative_time_str.lower()
-
-    # Current time
-    current_time = datetime.now()
-
-    # Regular expression to match different time units (second, minute, hour, day, week, month, year)
-    time_patterns = {
-        'second': r"(\d+)\s*(second|seconds)\s*ago",
-        'minute': r"(\d+)\s*(minute|minutes)\s*ago",
-        'hour': r"(\d+)\s*(hour|hours)\s*ago",
-        'day': r"(\d+)\s*(day|days)\s*ago",
-        'week': r"(\d+)\s*(week|weeks)\s*ago",
-        'month': r"(\d+)\s*(month|months)\s*ago",
-        'year': r"(\d+)\s*(year|years)\s*ago",
-    }
-
-    # Search for matches and apply the corresponding relativedelta
-    for unit, pattern in time_patterns.items():
-        match = re.match(pattern, relative_time_str, re.IGNORECASE)
-        if match:
-            amount = int(match.group(1))
-            if unit == 'second':
-                calculated_time = current_time - relativedelta(seconds=amount)
-            elif unit == 'minute':
-                calculated_time = current_time - relativedelta(minutes=amount)
-            elif unit == 'hour':
-                calculated_time = current_time - relativedelta(hours=amount)
-            elif unit == 'day':
-                calculated_time = current_time - relativedelta(days=amount)
-            elif unit == 'week':
-                calculated_time = current_time - relativedelta(weeks=amount)
-            elif unit == 'month':
-                calculated_time = current_time - relativedelta(months=amount)
-            elif unit == 'year':
-                calculated_time = current_time - relativedelta(years=amount)
-            
-            # Return the result in 'yyyy-mm-dd hh:mm:ss' format
-            return calculated_time.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # If no match found, return a default value
-    return "1970-01-01 00:00:00"
 
 def handle_cookie_consent(driver):
     """
