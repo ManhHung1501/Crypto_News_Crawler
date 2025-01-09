@@ -30,8 +30,14 @@ def get_detail_article(articles):
                 published_time = meta_tag.get_attribute("content")
                 dt = datetime.strptime(published_time, "%Y-%m-%dT%H:%M:%S%z")
                 published_at = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except NoSuchElementException:
-                print("can't get time_element")
+            except Exception:
+                try:
+                    meta_tag = driver.find_element(By.CSS_SELECTOR, "meta[property='article:modified_time']")
+                    published_time = meta_tag.get_attribute("content")
+                    dt = datetime.strptime(published_time, "%Y-%m-%dT%H:%M:%S%z")
+                    published_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    print("can't get time_element")
             
             try:
                 title = driver.find_element(By.CSS_SELECTOR, "main h1").text.strip()
