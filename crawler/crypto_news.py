@@ -218,6 +218,7 @@ def incremental_crawl_articles():
                     object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
+                    articles_data = []
                     break
                 date_str = article.find_element(By.CSS_SELECTOR, 'time').get_attribute('datetime')
                 # Add the article data to the list

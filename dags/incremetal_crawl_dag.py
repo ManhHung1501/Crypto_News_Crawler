@@ -4,7 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.utils.task_group import TaskGroup
 from crawler import (coindesk,cointelegraph,cryptoslate, 
     bitcoinist, newsbitcoin, cryptonews, blockonomi, newsbtc, 
-    decrypt, bankless, beincrypto, coingape, unchainedcrypto,
+    decrypt, bankless, beincrypto, coingape, unchainedcrypto, blockworks,
     utoday, cryptoflies, nftgators, globalcryptopress, crypto_news,
     ambcrypto, turnmycoin, holder_io, coinpedia, nftevening, buildoncronos,
     droomdroom, blockchainalpha, nonfungible, theblockcrypto, dailycoin)
@@ -32,6 +32,11 @@ with DAG(
     catchup=False,
     max_active_tasks=3,
 ) as dag:
+    crawl_blockworks_task = PythonOperator(task_id='crawl_blockworks',
+                                python_callable=blockworks.incremental_crawl_articles,
+                                provide_context=True
+                                )
+
     crawl_dailycoin_task = PythonOperator(task_id='crawl_dailycoin',
                                 python_callable=dailycoin.incremental_crawl_articles,
                                 provide_context=True
