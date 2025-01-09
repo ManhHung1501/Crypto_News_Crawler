@@ -103,6 +103,7 @@ def full_crawl_articles():
 
     not_crawled = last_crawled_id is None
     articles_data = []
+    crawled_id = set()
     batch_size = 100
     retries = 3
     retries_count =1
@@ -125,6 +126,9 @@ def full_crawl_articles():
                 article_url = link_element.get_attribute("href")
                 article_id = generate_url_hash(article_url)
                 # Skip if the article URL has already been processed
+                if article_id in crawled_id:
+                    continue
+
                 if not not_crawled and article_id == last_crawled_id:
                     not_crawled = True
                     continue
@@ -138,6 +142,7 @@ def full_crawl_articles():
                         "url": article_url,
                         "source": "bitcoinist.com"
                     })
+                    crawled_id.add(article_id)
                 if len(articles_data) == batch_size:
                     articles_data = get_detail_article(articles=articles_data)
                     new_batch = current_batch + batch_size
