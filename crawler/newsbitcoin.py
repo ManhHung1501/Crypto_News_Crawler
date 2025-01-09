@@ -11,55 +11,7 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-# Function to convert relative time to a datetime object
-def parse_date(date_str):
-    date_str = date_str.lower().strip()
-
-    # Current time
-    current_time = datetime.now()
-
-    # Regular expression to match different time units (second, minute, hour, day, week, month, year)
-    time_patterns = {
-        'second': r"(\d+)\s*(second|seconds)\s*ago",
-        'minute': r"(\d+)\s*(minute|minutes)\s*ago",
-        'hour': r"(\d+)\s*(hour|hours)\s*ago",
-        'day': r"(\d+)\s*(day|days)\s*ago",
-        'week': r"(\d+)\s*(week|weeks)\s*ago",
-        'month': r"(\d+)\s*(month|months)\s*ago",
-        'year': r"(\d+)\s*(year|years)\s*ago",
-    }
-
-    # Search for matches and apply the corresponding relativedelta
-    for unit, pattern in time_patterns.items():
-        match = re.match(pattern, date_str, re.IGNORECASE)
-        if match:
-            amount = int(match.group(1))
-            if unit == 'second':
-                calculated_time = current_time - relativedelta(seconds=amount)
-            elif unit == 'minute':
-                calculated_time = current_time - relativedelta(minutes=amount)
-            elif unit == 'hour':
-                calculated_time = current_time - relativedelta(hours=amount)
-            elif unit == 'day':
-                calculated_time = current_time - relativedelta(days=amount)
-            elif unit == 'week':
-                calculated_time = current_time - relativedelta(weeks=amount)
-            elif unit == 'month':
-                calculated_time = current_time - relativedelta(months=amount)
-            elif unit == 'year':
-                calculated_time = current_time - relativedelta(years=amount)
-            
-            # Return the result in 'yyyy-mm-dd hh:mm:ss' format
-            return calculated_time.strftime('%Y-%m-%d %H:%M:%S')
-    try:
-        date_obj = datetime.strptime(date_str, "%b %d, %Y")
-        # Format to desired string format
-        formatted_date = date_obj.strftime("%Y-%m-%d %H:%M:%S")
-        return formatted_date
-    except ValueError:
-        # If no match or valid date, return the default value
-        return "1970-01-01 00:00:00"
-    
+ 
 # Get detail content for article
 def get_detail_article(articles):
     driver = setup_driver()
@@ -74,12 +26,15 @@ def get_detail_article(articles):
             wait_for_page_load(driver, "div.article__body")
         
             try:
-                published_at = parse_date(driver.find_element(By.CSS_SELECTOR ,".sc-gjvBwi").text.strip())
+                meta_tag = driver.find_element(By.CSS_SELECTOR, "meta[property='article:published_time']")
+                published_time = meta_tag.get_attribute("content")
+                dt = datetime.strptime(published_time, "%Y-%m-%dT%H:%M:%S%z")
+                published_at = dt.strftime("%Y-%m-%d %H:%M:%S")
             except NoSuchElementException:
                 print("can't get time_element")
             
             try:
-                title = driver.find_element(By.CSS_SELECTOR, ".sc-jDlNXm").text.strip()
+                title = driver.find_element(By.CSS_SELECTOR, "main h1").text.strip()
             except NoSuchElementException:
                 print("can't get title_element")    
             
@@ -234,7 +189,7 @@ def incremental_crawl_articles(category):
                 
                 if article_id in last_crawled:
                     articles_data = get_detail_article(articles=articles_data)
-                    object_key = f'web_crawler/news.bitcoin/{category}/news.bitcoin_{category}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                    object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
                     break
