@@ -35,8 +35,7 @@ def get_detail_article( articles):
             
             try:
                 meta_tag = driver.find_element(By.CSS_SELECTOR, "meta[property='article:published_time']")
-                dt = datetime.strptime(meta_tag['content'], "%Y-%m-%dT%H:%M:%S%z")
-                # Format as 'yyyy-mm-dd hh:mm:ss' in UTC
+                dt = datetime.strptime(meta_tag.get_attribute("content"), "%Y-%m-%dT%H:%M:%S%z")
                 published_at = dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             except Exception as e:
                 print(f'Can not get meta tag: {e}')
