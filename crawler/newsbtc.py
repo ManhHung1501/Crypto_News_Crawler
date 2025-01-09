@@ -1,7 +1,7 @@
 import time, random, requests, re
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
-from datetime import datetime, date
+from datetime import datetime, timezone
 from dateutil.relativedelta import relativedelta
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -12,49 +12,6 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-def convert_relative_time_to_datetime(relative_time_str):
-    relative_time_str = relative_time_str.lower().strip()
-
-    # Current time
-    current_time = datetime.now()
-
-    # Regular expression to match different time units (second, minute, hour, day, week, month, year)
-    time_patterns = {
-        'second': r"(\d+)\s*(second|seconds)\s*ago",
-        'minute': r"(\d+)\s*(minute|minutes)\s*ago",
-        'hour': r"(\d+)\s*(hour|hours)\s*ago",
-        'day': r"(\d+)\s*(day|days)\s*ago",
-        'week': r"(\d+)\s*(week|weeks)\s*ago",
-        'month': r"(\d+)\s*(month|months)\s*ago",
-        'year': r"(\d+)\s*(year|years)\s*ago",
-    }
-
-    # Search for matches and apply the corresponding relativedelta
-    for unit, pattern in time_patterns.items():
-        match = re.search(pattern, relative_time_str, re.IGNORECASE)
-        if match:
-            amount = int(match.group(1))
-            if unit == 'second':
-                calculated_time = current_time - relativedelta(seconds=amount)
-            elif unit == 'minute':
-                calculated_time = current_time - relativedelta(minutes=amount)
-            elif unit == 'hour':
-                calculated_time = current_time - relativedelta(hours=amount)
-            elif unit == 'day':
-                calculated_time = current_time - relativedelta(days=amount)
-            elif unit == 'week':
-                calculated_time = current_time - relativedelta(weeks=amount)
-            elif unit == 'month':
-                calculated_time = current_time - relativedelta(months=amount)
-            elif unit == 'year':
-                calculated_time = current_time - relativedelta(years=amount)
-            
-            # Return the result in 'yyyy-mm-dd hh:mm:ss' format
-            return calculated_time.strftime('%Y-%m-%d %H:%M:%S')
-    
-    # If no match found, print error and return default value
-    print(f"Cannot parse date: {relative_time_str}")
-    return "1970-01-01 00:00:00"
 
 def handle_cookie_consent(driver):
     """
@@ -78,6 +35,7 @@ def get_detail_article( articles):
     for article in articles:
         url = article['url']
         content = "No content"
+        published_at = "1970-01-01 00:00:00"
         try:
             # Make the HTTP request
             for _ in range(3):
@@ -101,13 +59,21 @@ def get_detail_article( articles):
                     unwanted.decompose()
                 content = ' '.join(article_content_div.stripped_strings)
             
+            meta_tag = soup.find('meta', {'property': 'article:published_time'})
+            if meta_tag:
+                dt = datetime.strptime(meta_tag['content'].strip(), "%Y-%m-%dT%H:%M:%S%z")
+                published_at = dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
         except Exception as e:
             print(f"Error get publish date for URL {url}: {e}")
 
         if content == "No content":
             print(f'Failed to get content for {url}')
+        if published_at == "1970-01-01 00:00:00":
+            print(f'Failed to get publish date for {url}')
 
         article['content']  = content 
+        article['published_at']  = published_at
     return articles
 
 
@@ -157,16 +123,11 @@ def full_crawl_articles():
                     not_crawled = True
                     continue
                 if not_crawled:
-                    author_span = article.find_element(By.CSS_SELECTOR, "span.block-article__author")
-                    author_name = author_span.find_element(By.CSS_SELECTOR, "span.block-article__author-page").text.strip()
-                    date_str = author_span.text.replace(author_name, '').strip()
-
                     # Add the article data to the list
                     articles_data.append({
                         "id": article_id,
                         "title": article.find_element(By.CSS_SELECTOR, "h4.block-article__title").text,
                         "url": article_url,
-                        "published_at": convert_relative_time_to_datetime(date_str),
                         "source": "newsbtc.com"
                     })
                     crawled_id.add(article_id)
@@ -256,20 +217,16 @@ def incremental_crawl_articles():
 
                 if article_id in last_crawled:
                     articles_data = get_detail_article(articles=articles_data)
-                    object_key = f'web_crawler/newsbtc/newsbtc_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                    object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
                     break
-                author_span = article.find_element(By.CSS_SELECTOR, "span.block-article__author")
-                author_name = author_span.find_element(By.CSS_SELECTOR, "span.block-article__author-page").text.strip()
-                date_str = author_span.text.replace(author_name, '').strip()
 
                 # Add the article data to the list
                 articles_data.append({
                     "id": article_id,
                     "title": article.find_element(By.CSS_SELECTOR, "h4.block-article__title").text,
                     "url": article_url,
-                    "published_at": convert_relative_time_to_datetime(date_str),
                     "source": "newsbtc.com"
                 })
                 crawled_id.add(article_id)
