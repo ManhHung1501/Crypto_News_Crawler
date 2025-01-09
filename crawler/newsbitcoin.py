@@ -88,7 +88,7 @@ def full_crawl_articles(category):
     driver.get(URL)
 
     # Wait for the articles to load initially
-    wait_for_page_load(driver,"div.sc-iDJa-DH.fTIdPq a.sc-gtMAan.eBbAic")
+    wait_for_page_load(driver,"div.sc-gtMAan.jyZwKo a.sc-iDJa-DH.cjkVqL")
     
     not_crawled = last_crawled_id is None
     articles_data = []
@@ -97,7 +97,7 @@ def full_crawl_articles(category):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(1)
 
-        articles = driver.find_elements(By.CSS_SELECTOR, "div.sc-iDJa-DH.fTIdPq a.sc-gtMAan.eBbAic")
+        articles = driver.find_elements(By.CSS_SELECTOR, "div.sc-gtMAan.jyZwKo a.sc-iDJa-DH.cjkVqL")
         for article in articles:
             try:
                 # Extract title
@@ -172,18 +172,35 @@ def incremental_crawl_articles(category):
     driver.get(URL)
 
     # Wait for the articles to load initially
-    wait_for_page_load(driver,"div.sc-gtMAan.jyZwKo a.sc-iDJa-DH.cjkVqL")
+    wait_for_page_load(driver,"a h6")
 
     articles_data = []
     complete = False
+    try:
+        first_article = driver.find_elements(By.CSS_SELECTOR, "a h5").find_element(By.XPATH, "./..")
+        article_url = first_article.get_attribute("href")
+        article_id = generate_url_hash(article_url)
+        if article_id in last_crawled:
+            return
+        articles_data.append(
+            {
+                "id": article_id,
+                "url": article_url,
+                "source": "news.bitcoin.com"
+            }
+        )
+    except NoSuchElementException:
+        return
+
     while not complete:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(1)
 
-        articles = driver.find_elements(By.CSS_SELECTOR, "div.sc-gtMAan.jyZwKo a.sc-iDJa-DH.cjkVqL")
-        for article in articles:
+        articles = driver.find_elements(By.CSS_SELECTOR, "a h6")
+        for h6_element in articles:
             try:
                 # Extract title
+                article = h6_element.find_element(By.XPATH, "./..")
                 article_url = article.get_attribute("href")
                 article_id = generate_url_hash(article_url)
                 
