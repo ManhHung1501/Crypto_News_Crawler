@@ -177,7 +177,7 @@ def incremental_crawl_articles(category):
     articles_data = []
     complete = False
     try:
-        first_article = driver.find_elements(By.CSS_SELECTOR, "a h5").find_element(By.XPATH, "./..")
+        first_article = driver.find_element(By.CSS_SELECTOR, "a h5").find_element(By.XPATH, "./..")
         article_url = first_article.get_attribute("href")
         article_id = generate_url_hash(article_url)
         if article_id in last_crawled:
