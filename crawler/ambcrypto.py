@@ -34,7 +34,12 @@ def get_detail_article(articles):
             if meta_tag:
                 dt = datetime.strptime(meta_tag['content'].strip(), "%Y-%m-%dT%H:%M:%S%z")
                 published_at = dt.strftime("%Y-%m-%d %H:%M:%S")
-
+            else:
+                meta_tag = soup.find('meta', {'name': 'published_at'})
+                if meta_tag:
+                    dt = datetime.strptime(meta_tag['content'].strip(), "%Y-%m-%dT%H:%M:%S")
+                    published_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+                    
             article_card = soup.find("div", class_="single-post-main-middle")
             if article_card:
                 unwanted_cards = ".post-nav, .ambcr-after-content_2, .ambcr-content_2, .ambcr-before-content_2, .single-post-share, .wp-caption"
@@ -42,6 +47,14 @@ def get_detail_article(articles):
                     unwanted.decompose()
 
                 content = ' '.join(article_card.stripped_strings)
+            else:
+                article_card = soup.find("div", class_="blog-container").find("div", class_="left-container")
+                if article_card:
+                    unwanted_cards = ".content-cointainer, table, .prediction-table-container"
+                    for unwanted in article_card.select(unwanted_cards):
+                        unwanted.decompose()
+
+                    content = ' '.join(article_card.stripped_strings)
             
         except Exception as e: 
             print(f'Error in get content for {url}: ', e)
