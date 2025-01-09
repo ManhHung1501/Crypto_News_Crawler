@@ -1,6 +1,6 @@
-import time, random, pytz
+import time, random
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timezone
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
@@ -10,40 +10,7 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-# Function to convert relative time to a datetime object
-def parse_date(date_str):
-    # Replace the timezone abbreviations with full names and offsets
-    if "EST" in date_str:
-        date_str = date_str.replace("EST", "-0500")
-    elif "EDT" in date_str:
-        date_str = date_str.replace("EDT", "-0400")
-    elif "UTC" in date_str:
-        date_str = date_str.replace("UTC", "-0000")
-    else:
-        print(f"Invalid time zone in {date_str}")
-        return "1970-01-01 00:00:00"
-    
-    try:
-        if 'Updated' in date_str:
-            date_str = date_str.split('.')[0].strip()
-        # Clean up the date string
-        date_cleaned = date_str.replace(".", "").replace("Posted ", "").replace("at ", "").strip()
-        
-        # Ensure the correct format with a space between time and AM/PM
-        date_cleaned = date_cleaned.replace(",", "")  # Remove commas if any
-        
-        # Parse the date string with the offset
-        date_obj = datetime.strptime(date_cleaned, "%B %d %Y %I:%M %p %z")
 
-        # Convert to UTC
-        utc_date = date_obj.astimezone(pytz.utc)
-
-        # Format the date as yyyy-mm-dd hh:mm:ss
-        return utc_date.strftime("%Y-%m-%d %H:%M:%S")
-    
-    except Exception as e:
-        print(f'Error in Parse Date: {date_str} -> {str(e)}')
-        return "1970-01-01 00:00:00"
 
 # Get publish timestamp
 def get_detail_article( articles):
@@ -55,8 +22,12 @@ def get_detail_article( articles):
         for i in range(3):
             try:
                 driver.get(url)
-                date_str = driver.find_element(By.CSS_SELECTOR, "div.post-date").text.strip()
-                published_at = parse_date(date_str)
+                try:
+                    meta_tag = driver.find_element(By.CSS_SELECTOR, "meta[property='article:published_time']")
+                    dt = datetime.strptime(meta_tag.get_attribute("content"), "%Y-%m-%dT%H:%M:%S%z")
+                    published_at = dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                except Exception as e:
+                    print(f"can't get time_element: {e}")
                 # Parse the HTML with BeautifulSoup
                 article_content_div = BeautifulSoup(driver.find_element(By.CSS_SELECTOR, "div.post-content").get_attribute("innerHTML"), 'html.parser')
 
