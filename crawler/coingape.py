@@ -1,7 +1,6 @@
-import time, random, re
+import time, random
 from bs4 import BeautifulSoup
-from datetime import datetime,date
-from dateutil.relativedelta import relativedelta
+from datetime import datetime,timezone
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -11,54 +10,6 @@ from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawle
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 
-# Function to convert relative time to a datetime object
-def convert_relative_time_to_datetime(datetime_str):
-    relative_time_str = datetime_str.lower()
-
-    # Current time
-    current_time = datetime.now()
-    parsed_time = "1970-01-01 00:00:00"
-    # Regular expression to match different time units (second, minute, hour, day, week, month, year)
-    time_patterns = {
-        'second': r"(\d+)\s*(second|seconds)\s*ago",
-        'minute': r"(\d+)\s*(minute|minutes)\s*ago",
-        'hour': r"(\d+)\s*(hour|hours)\s*ago",
-        'day': r"(\d+)\s*(day|days)\s*ago",
-        'week': r"(\d+)\s*(week|weeks)\s*ago",
-        'month': r"(\d+)\s*(month|months)\s*ago",
-        'year': r"(\d+)\s*(year|years)\s*ago",
-    }
-
-    # Search for matches and apply the corresponding relativedelta
-    for unit, pattern in time_patterns.items():
-        match = re.match(pattern, relative_time_str, re.IGNORECASE)
-        if match:
-            amount = int(match.group(1))
-            if unit == 'second':
-                calculated_time = current_time - relativedelta(seconds=amount)
-            elif unit == 'minute':
-                calculated_time = current_time - relativedelta(minutes=amount)
-            elif unit == 'hour':
-                calculated_time = current_time - relativedelta(hours=amount)
-            elif unit == 'day':
-                calculated_time = current_time - relativedelta(days=amount)
-            elif unit == 'week':
-                calculated_time = current_time - relativedelta(weeks=amount)
-            elif unit == 'month':
-                calculated_time = current_time - relativedelta(months=amount)
-            elif unit == 'year':
-                calculated_time = current_time - relativedelta(years=amount)
-            
-            # Return the result in 'yyyy-mm-dd hh:mm:ss' format
-            parsed_time = calculated_time.strftime('%Y-%m-%d %H:%M:%S')
-            break
-    if parsed_time == "1970-01-01 00:00:00":
-        try:
-            parsed_time = datetime.strptime(datetime_str, "%B %d, %Y").strftime("%Y-%m-%d %H:%M:%S")
-        except Exception  as e:
-            print(f"Failed to parse datetime string: {datetime_str}")
-   
-    return parsed_time
 
 # Get publish timestamp
 def get_detail_article( articles):
@@ -66,6 +17,7 @@ def get_detail_article( articles):
     for article in articles:
         url = article['url']
         content = "No content"
+        published_at = "1970-01-01 00:00:00"
         try:
             driver.get(url)
             try:
@@ -81,13 +33,26 @@ def get_detail_article( articles):
                     unwanted.decompose()
                 content = ' '.join(article_content_div.stripped_strings)
             
+            try:
+                meta_tag = driver.find_element(By.CSS_SELECTOR, "meta[property='article:published_time']")
+                dt = datetime.strptime(meta_tag['content'], "%Y-%m-%dT%H:%M:%S%z")
+                # Convert to UTC
+                dt_utc = dt.astimezone(timezone.utc)
+                # Format as 'yyyy-mm-dd hh:mm:ss' in UTC
+                published_at = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                print('Can not get meta tag')
+            
         except Exception as e:
             print(f"Error in URL {url}: {e}")
         
         if content == "No content":
             print(f'Failed to get content for {url}')
+        if published_at == "1970-01-01 00:00:00":
+            print(f'Failed to get publish date for {url}')
 
         article['content']  = content
+        article['published_at']  = published_at
 
     driver.quit() 
     return articles
@@ -150,7 +115,6 @@ def full_crawl_articles():
                         "id": article_id,
                         "title": link_element.find_element(By.CSS_SELECTOR, "div.covertitle_edu").text.strip(),
                         "url": article_url,
-                        "published_at": convert_relative_time_to_datetime(time_element),
                         "source": "coingape.com"
                     })
                     crawled_id.add(article_id)
@@ -251,7 +215,6 @@ def incremental_crawl_articles():
                     "id": article_id,
                     "title": link_element.find_element(By.CSS_SELECTOR, "div.covertitle_edu").text.strip(),
                     "url": article_url,
-                    "published_at": convert_relative_time_to_datetime(time_element),
                     "source": "coingape.com"
                 })
                 crawled_id.add(article_id)
