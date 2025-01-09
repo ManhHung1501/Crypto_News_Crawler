@@ -1,7 +1,7 @@
 import time, random, requests, re
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
-from datetime import datetime,date
+from datetime import datetime,timezone
 from dateutil.relativedelta import relativedelta
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -89,15 +89,22 @@ def get_detail_article( articles):
                 time.sleep(10)
             except requests.exceptions.RequestException as e:
                 print(f"Request for {url} failed: {e}")
-                continue
+
 
             # Parse the HTML with BeautifulSoup
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Find the header container
             date_element = soup.find('div', class_='jeg_meta_date')
+            meta_tag = soup.find('meta', {'property': 'article:published_time'})
             if date_element:
-                published_at = convert_relative_time_to_datetime(date_element.get_text(strip=True))  
+                dt = datetime.strptime(meta_tag['content'], "%Y-%m-%dT%H:%M:%S%z")
+
+                # Convert to UTC
+                dt_utc = dt.astimezone(timezone.utc)
+
+                # Format as 'yyyy-mm-dd hh:mm:ss' in UTC
+                published_at = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
             else: 
                 print(f"No date_element found for {url}")    
 
@@ -110,7 +117,7 @@ def get_detail_article( articles):
                 content = ' '.join(article_content_div.stripped_strings)
             
         except Exception as e:
-            print(f"Error get publish date for URL {url}: {e}")
+            print(f"Error get detail for URL {url}: {e}")
         
         if published_at == "1970-01-01 00:00:00":
             print(f'Failed to get publish date for {url}')
@@ -265,7 +272,7 @@ def incremental_crawl_articles():
 
                 if article_id in last_crawled:
                     articles_data = get_detail_article(articles=articles_data)
-                    object_key = f'web_crawler/bitcoinist/bitcoinist_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                    object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
                     break
