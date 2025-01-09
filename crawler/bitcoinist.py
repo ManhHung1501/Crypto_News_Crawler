@@ -51,9 +51,8 @@ def get_detail_article( articles):
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Find the header container
-            date_element = soup.find('div', class_='jeg_meta_date')
             meta_tag = soup.find('meta', {'property': 'article:published_time'})
-            if date_element:
+            if meta_tag:
                 dt = datetime.strptime(meta_tag['content'], "%Y-%m-%dT%H:%M:%S%z")
 
                 # Convert to UTC
@@ -62,7 +61,7 @@ def get_detail_article( articles):
                 # Format as 'yyyy-mm-dd hh:mm:ss' in UTC
                 published_at = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
             else: 
-                print(f"No date_element found for {url}")    
+                print(f"No meta_tag found for {url}")    
 
             # content                
             article_content_div = soup.select_one('div.jeg_main_content')
