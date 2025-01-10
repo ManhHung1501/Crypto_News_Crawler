@@ -169,6 +169,7 @@ def incremental_crawl_articles(category):
     # Wait for the articles to load initially
     wait_for_page_load(driver, 'section')
     
+    retries_count = 0
     articles_data = []
     crawled_id = set()
     previous_news =0

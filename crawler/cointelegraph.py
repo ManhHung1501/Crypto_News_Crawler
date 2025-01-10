@@ -171,6 +171,9 @@ def incremental_crawl_articles(tag):
     except NoSuchElementException:
         print("No Accept cookies to click")
 
+    retries = 3        
+    retries_count = 0
+
     articles_data = []
     crawled_id = set()
     previous_news = 0
@@ -225,8 +228,7 @@ def incremental_crawl_articles(tag):
             except Exception as e:
                 print(f"Error extracting data for an article: {e}")
 
-        retries = 3        
-        retries_count = 0
+        
         try:
             driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
             previous_news = current_news
