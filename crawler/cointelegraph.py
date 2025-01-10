@@ -175,12 +175,18 @@ def incremental_crawl_articles(tag):
     crawled_id = set()
     previous_news = 0
     complete = False
+    count = 0
     while not complete:
         # Dynamically re-locate articles to avoid stale element issues
         data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-card-inline__content")
         current_news = len(data_div)
         if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
             time.sleep(3)
+        else:
+            count = 0
         articles = data_div[previous_news : current_news]
         print(f"Crawling news from {previous_news} to {current_news} news of {tag}")
 
@@ -223,7 +229,6 @@ def incremental_crawl_articles(tag):
         retries_count = 0
         try:
             driver.execute_script("arguments[0].scrollIntoView();", articles[-1])
-            print(f"Process from {previous_news} to {current_news}")
             previous_news = current_news
             retries_count = 0
         except IndexError:
