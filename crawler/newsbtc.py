@@ -99,6 +99,7 @@ def full_crawl_articles():
     crawled_id = set()
     batch_size = 100
     previous_news = 0 
+    count = 0
     while True:
         # Get all the articles on the current page
         container = driver.find_element(By.CSS_SELECTOR, "div.jeg_main_content ")
@@ -107,7 +108,12 @@ def full_crawl_articles():
         data_div = container.find_elements(By.CSS_SELECTOR, "div.block-article__content")
         current_news = len(data_div)
         if current_news == previous_news:
-            break
+            if count == 5:
+                break
+            count += 1
+            time.sleep(3)
+        else:
+            count = 0
         articles = data_div[previous_news: current_news]
         print(f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:
