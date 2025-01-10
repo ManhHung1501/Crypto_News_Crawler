@@ -1,5 +1,5 @@
 import time, random, requests, re
-from datetime import datetime
+from datetime import datetime, timezone
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
 from selenium.webdriver.common.by import By
@@ -32,12 +32,14 @@ def get_detail_article(articles):
                     time.sleep(5)
                 
             soup = BeautifulSoup(response.content, "html.parser")
+            
+            meta_tag = soup.find('meta', {'property': 'og:updated_time'})
+            if meta_tag:
+                dt = datetime.strptime(meta_tag['content'], "%Y-%m-%dT%H:%M:%S%z")
+                # Format as 'yyyy-mm-dd hh:mm:ss' in UTC
+                published_at = dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+                
             article_card = soup.find("div", class_="elementor-widget-theme-post-content")
-            date_tag = article_card.find("p", class_="last-updated")
-            if date_tag:
-                date_string=date_tag.text.replace("Last updated on", "").strip()
-                date_string = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_string)
-                published_at = datetime.strptime(date_string, "%B %d, %Y at %I:%M %p").strftime("%Y-%m-%d %H:%M:%S")
             if article_card:
                 unwanted_cards = ".wp-block-essential-blocks-table-of-contents, .last-updated"
                 for unwanted in article_card.select(unwanted_cards):
