@@ -104,6 +104,7 @@ def full_crawl_articles():
     articles_data = []
     crawled_id = set()
     batch_size = 100
+    count = 0
     retries = 3
     retries_count =1
     previous_news = 0 
@@ -115,7 +116,12 @@ def full_crawl_articles():
         data_div = container.find_elements(By.CSS_SELECTOR, "article.jeg_post")
         current_news = len(data_div)
         if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
             time.sleep(3)
+        else:
+            count = 0
         articles = data_div[previous_news: current_news]
         print(f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:
@@ -209,6 +215,7 @@ def incremental_crawl_articles():
     retries = 3
     retries_count =1
     previous_news = 0 
+    count = 0
     complete = False
     while not complete:
         # Get all the articles on the current page
@@ -218,7 +225,12 @@ def incremental_crawl_articles():
         data_div = container.find_elements(By.CSS_SELECTOR, "article.jeg_post")
         current_news = len(data_div)
         if current_news == previous_news:
+            if count == 3:
+                break
+            count += 1
             time.sleep(3)
+        else:
+            count = 0
         articles = data_div[previous_news: current_news]
         print(f"Crawling news from {previous_news} to {current_news} news")
         for article in articles:
