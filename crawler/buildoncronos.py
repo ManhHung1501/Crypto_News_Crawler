@@ -152,13 +152,15 @@ def incremental_crawl_articles():
     crawled_id = set()
     previous_news = 0
     count = 0
+    retries_count= 0
     complete = False
     while not complete:
         # Get all the articles on the current page
         container = driver.find_element(By.CSS_SELECTOR, "div.portable-archive-list")
         
         # Find all the articles within the container
-        data_div = container.find_elements(By.CSS_SELECTOR, "div._container_6i6j0_1")
+        data_div = container.find_elements(By.XPATH, "//div[starts-with(@class, 'container-')]")
+
         current_news = len(data_div)
         if current_news == previous_news:
             if count == 3:
@@ -184,7 +186,7 @@ def incremental_crawl_articles():
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
                     break
-                date_str = article.find_element(By.CSS_SELECTOR, "time._date_qpf1t_1").get_attribute('datetime')
+                date_str = article.find_element(By.CSS_SELECTOR, "time").get_attribute('datetime')
                 # Add the article data to the list
                 articles_data.append({
                     "id": article_id,
