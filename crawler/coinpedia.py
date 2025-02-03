@@ -70,11 +70,14 @@ def full_crawl_articles():
     driver.get(URL)
 
     # Wait for the articles to load initially
-    wait_for_page_load(driver, 'div.container-wrapper')
-    close_ad_btn = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "span.close-ad-btn"))
-            )
-    close_ad_btn.click()
+    wait_for_page_load(driver, 'div.post-details')
+    try:
+        close_ad_btn = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "span.close-ad-btn"))
+                )
+        close_ad_btn.click()
+    except Exception as e:
+        print("Can not close ad popup")
 
     not_crawled = last_crawled_id is None
     articles_data = []
@@ -82,11 +85,8 @@ def full_crawl_articles():
     previous_news = 0 
     count = 0
     while True:
-        # Get all the articles on the current page
-        container = driver.find_element(By.CSS_SELECTOR, "div.container-wrapper")
-
         # Find all the articles within the container
-        data_div = container.find_elements(By.CSS_SELECTOR, "div.post-details")
+        data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-details")
         current_news = len(data_div)
         if current_news == previous_news:
             if count == 5:
@@ -164,12 +164,15 @@ def incremental_crawl_articles():
     driver.get(URL)
 
     # Wait for the articles to load initially
-    wait_for_page_load(driver, 'div.container-wrapper')
-    close_ad_btn = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "span.close-ad-btn"))
-            )
-    close_ad_btn.click()
+    wait_for_page_load(driver, 'div.post-details')
 
+    try:
+        close_ad_btn = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "span.close-ad-btn"))
+                )
+        close_ad_btn.click()
+    except Exception as e:
+        print("Can not close ad popup")
 
     articles_data = []
     crawled_id = set()
@@ -177,11 +180,8 @@ def incremental_crawl_articles():
     count = 0
     complete = False
     while not complete:
-        # Get all the articles on the current page
-        container = driver.find_element(By.CSS_SELECTOR, "div.container-wrapper")
-
         # Find all the articles within the container
-        data_div = container.find_elements(By.CSS_SELECTOR, "div.post-details")
+        data_div = driver.find_elements(By.CSS_SELECTOR, "div.post-details")
         current_news = len(data_div)
         if current_news == previous_news:
             if count == 5:
