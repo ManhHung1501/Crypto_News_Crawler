@@ -69,7 +69,7 @@ def full_crawl_articles():
         container = driver.find_element(By.CSS_SELECTOR, "div.portable-archive-list")
         
         # Find all the articles within the container
-        data_div = container.find_elements(By.CSS_SELECTOR, "div._container_6i6j0_1")
+        data_div = container.find_elements(By.XPATH, "//div[starts-with(@class, 'container-')]")
         current_news = len(data_div)
         if current_news == previous_news:
             if count == 3:
@@ -93,7 +93,7 @@ def full_crawl_articles():
                     not_crawled = True
                     continue
                 if not_crawled:
-                    date_str = article.find_element(By.CSS_SELECTOR, "time._date_qpf1t_1").get_attribute('datetime')
+                    date_str = article.find_element(By.CSS_SELECTOR, "time").get_attribute('datetime')
                     # Add the article data to the list
                     articles_data.append({
                         "id": article_id,
