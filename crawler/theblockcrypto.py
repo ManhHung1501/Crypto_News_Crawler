@@ -73,14 +73,14 @@ def get_detail_article(articles):
                 print(f"Error get content for URL {url}: {e}")
 
             article['content'] = content
+            
             if content == "No content":
                 print(f'Failed to get content for {url} attempt {retry+1}')
-                driver.quit()   
+                driver.quit()  
                 driver = setup_driver()
             else:
-                driver.quit()  
                 break
-        
+        driver.quit()  
             
     return articles
 
