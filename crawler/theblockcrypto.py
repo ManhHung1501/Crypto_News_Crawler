@@ -76,10 +76,11 @@ def get_detail_article(articles):
             article['content'] = content
             if content == "No content":
                 print(f'Failed to get content for {url} attempt {retry+1}')
+                time.sleep(3)
             else:
                 break
+        driver.quit()    
             
-            driver.quit()
     return articles
 
 def full_crawl_articles():
