@@ -162,9 +162,13 @@ def incremental_crawl_articles(max_news:int=500):
 
     # Open the URL
     driver.get(URL)
-
+    time.sleep(5)
+    try:
+        driver.execute_script("window.scrollBy(0, 500);")
+    except Exception as e:
+        print(f'scroll error {e}')
     # Wait for the articles to load initially
-    wait_for_page_load(driver, 'div.post-details')
+    wait_for_page_load(driver, 'div.post-details', 30)
 
     try:
         close_ad_btn = WebDriverWait(driver, 10).until(
@@ -173,6 +177,8 @@ def incremental_crawl_articles(max_news:int=500):
         close_ad_btn.click()
     except Exception as e:
         print("Can not close ad popup")
+    
+    
 
     articles_data = []
     crawled_id = set()
