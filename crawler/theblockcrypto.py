@@ -57,29 +57,29 @@ def get_detail_article(articles):
         driver = setup_driver()
         url = article['url']
         content = "No content"
-        try:
-            driver.get(url)
-            wait_for_page_load(driver, "section.article")
-            
+        for retry in range(3):
             try:
-                content_element = driver.find_element(By.CSS_SELECTOR, "div.articleContent").find_element(By.ID, "articleContent")
-                soup = BeautifulSoup(content_element.get_attribute("innerHTML"), 'html.parser')
-                for unwanted in soup.select(".copyright"):
-                    unwanted.decompose()
-                content = ' '.join(soup.stripped_strings)
-            except NoSuchElementException:
-                print(f'Can not get content element')
+                driver.get(url)
+                wait_for_page_load(driver, "section.article")
+                
+                try:
+                    content_element = driver.find_element(By.CSS_SELECTOR, "div.articleContent").find_element(By.ID, "articleContent")
+                    soup = BeautifulSoup(content_element.get_attribute("innerHTML"), 'html.parser')
+                    for unwanted in soup.select(".copyright"):
+                        unwanted.decompose()
+                    content = ' '.join(soup.stripped_strings)
+                except NoSuchElementException:
+                    print(f'Can not get content element')
+            except Exception as e:
+                print(f"Error get content for URL {url}: {e}")
+
+            article['content'] = content
+            if content == "No content":
+                print(f'Failed to get content for {url} attempt {retry+1}')
+            else:
+                break
             
-
-        except Exception as e:
-            print(f"Error get content for URL {url}: {e}")
-
-
-        if content == "No content":
-            print(f'Failed to get content for {url}')
-        article['content'] = content
-        
-        driver.quit()
+            driver.quit()
     return articles
 
 def full_crawl_articles():
