@@ -152,7 +152,7 @@ def full_crawl_articles(tag):
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
     driver.quit()
 
-def incremental_crawl_articles(tag):
+def incremental_crawl_articles(tag, max_news:int=500):
     driver = setup_driver()
     minio_client = connect_minio()
 
@@ -203,7 +203,7 @@ def incremental_crawl_articles(tag):
                 if article_id in crawled_id:
                     continue
 
-                if article_id in last_crawled:
+                if article_id in last_crawled or len(articles_data) == max_news:
                     articles_data = get_detail_article(articles=articles_data)
                     object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)

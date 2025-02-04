@@ -148,7 +148,7 @@ def full_crawl_articles():
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
-def incremental_crawl_articles():
+def incremental_crawl_articles(max_news:int =500):
     driver = setup_driver()
     
     minio_client = connect_minio()
@@ -194,7 +194,7 @@ def incremental_crawl_articles():
                 # Skip if the article URL has already been processed
                 if article_id in crawled_id:
                     continue
-                if article_id in last_crawled:
+                if article_id in last_crawled or len(articles_data) == max_news:
                     articles_data = get_detail_article(articles=articles_data)
                     object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)

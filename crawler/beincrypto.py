@@ -151,7 +151,7 @@ def full_crawl_articles():
         object_key = f'{prefix}{current_batch + len(articles_data)}.json'
         upload_json_to_minio(json_data=articles_data,object_key=object_key)
 
-def incremental_crawl_articles():
+def incremental_crawl_articles(max_news=500):
     minio_client = connect_minio()
     prefix = f'web_crawler/beincrypto/beincrypto_initial_batch_'
     STATE_FILE = f'web_crawler/beincrypto/beincrypto_incremental_crawled_at_'
@@ -179,7 +179,7 @@ def incremental_crawl_articles():
                     article_id = generate_url_hash(article_url)
                     # Skip if the article URL has already been processed
 
-                    if article_id in last_crawled:
+                    if article_id in last_crawled or len(articles_data) == max_news:
                         articles_data = get_detail_article(articles=articles_data)
                         object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                         upload_json_to_minio(json_data=articles_data, object_key=object_key)

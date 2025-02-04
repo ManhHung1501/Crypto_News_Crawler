@@ -99,7 +99,7 @@ def get_detail_article( articles):
         article['published_at']  = published_at
     return articles
 
-def incremental_crawl_articles(topic):
+def incremental_crawl_articles(topic, max_news:int = 500):
     driver = setup_driver()
     minio_client = connect_minio()
 
@@ -146,7 +146,7 @@ def incremental_crawl_articles(topic):
                     if article_id in crawled_id:
                         continue
 
-                    if article_id in last_crawled:
+                    if article_id in last_crawled or len(articles_data) == max_news:
                         articles_data = get_detail_article(
                             articles=articles_data
                         )
