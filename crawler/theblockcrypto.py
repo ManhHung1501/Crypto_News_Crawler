@@ -61,7 +61,6 @@ def get_detail_article(articles):
             try:
                 driver.get(url)
                 wait_for_page_load(driver, "section.article")
-                
                 try:
                     content_element = driver.find_element(By.CSS_SELECTOR, "div.articleContent").find_element(By.ID, "articleContent")
                     soup = BeautifulSoup(content_element.get_attribute("innerHTML"), 'html.parser')
@@ -76,10 +75,12 @@ def get_detail_article(articles):
             article['content'] = content
             if content == "No content":
                 print(f'Failed to get content for {url} attempt {retry+1}')
-                time.sleep(3)
+                driver.quit()   
+                driver = setup_driver()
             else:
+                driver.quit()  
                 break
-        driver.quit()    
+        
             
     return articles
 
