@@ -11,9 +11,8 @@ def load_json_from_minio_to_mongodb(
     minio_client, object_name
 ):
     try:
-        print(MONGODB_URL, MONGO_DB, MONGO_COLLECTION)
         # Connect to MongoDB
-        mongo_client = MongoClient(MONGODB_URL)
+        mongo_client = connect_mongodb()
         collection = mongo_client[MONGO_DB][MONGO_COLLECTION]
 
         # Fetch JSON file from MinIO
