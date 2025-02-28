@@ -28,7 +28,7 @@ with DAG(
     dag_id='Incremental_Crawl_Crypto_News_DAG',
     default_args=default_args,
     tags=["Crawl", "Crypto", "News", "Web"],
-    schedule_interval='0 0 * * *',
+    schedule_interval="0 */6 * * *",
     catchup=False,
     max_active_tasks=3,
 ) as dag:
