@@ -2,13 +2,14 @@ import time, random
 from datetime import datetime
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
-from concurrent.futures import ThreadPoolExecutor
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
 from crawler_utils.common_utils import generate_url_hash, get_last_crawled, get_last_initial_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from bs4 import BeautifulSoup
 from crawler_constants.crawl_constants import Cointelegraph
+from crawler_utils.mongo_utils import load_json_from_minio_to_mongodb
+
 
 tags = Cointelegraph.tags
 
@@ -208,6 +209,7 @@ def incremental_crawl_articles(tag, max_news:int=500):
                     object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
+                    load_json_from_minio_to_mongodb(minio_client, object_key) 
                     break
                 
                 date_element = article.find_element(By.CSS_SELECTOR, "time")

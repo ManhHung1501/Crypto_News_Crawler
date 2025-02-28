@@ -5,6 +5,9 @@ from datetime import datetime
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
 from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
+from crawler_utils.mongo_utils import load_json_from_minio_to_mongodb
+
+
 
 # Get total page
 def get_total_page(URL):
@@ -185,6 +188,7 @@ def incremental_crawl_articles(category, max_news:int=500):
                         object_key = f'web_crawler/cryptoflies/{category}/cryptoflies_{category}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
                         upload_json_to_minio(json_data=articles_data, object_key=object_key)
                         complete = True
+                        load_json_from_minio_to_mongodb(minio_client, object_key) 
                         break
                     time_element = article.find('time', class_='entry-date published')
                     if time_element:

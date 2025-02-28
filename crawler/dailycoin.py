@@ -14,6 +14,8 @@ from crawler_config.chrome_config import CHROME_DRIVER_PATH
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
+from crawler_utils.mongo_utils import load_json_from_minio_to_mongodb
+
 
 def setup_vpn_driver():
     service = Service(CHROME_DRIVER_PATH)
@@ -213,6 +215,7 @@ def incremental_crawl_articles(max_news:int=500):
                     object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
                     complete = True
+                    load_json_from_minio_to_mongodb(minio_client, object_key) 
                     break
                 articles_data.append({
                     "id": article_id,

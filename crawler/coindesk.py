@@ -15,6 +15,8 @@ from crawler_utils.common_utils import generate_url_hash, get_last_crawled, get_
 from crawler_utils.chrome_driver_utils import setup_driver
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from crawler_constants.crawl_constants import Coindesk
+from crawler_utils.mongo_utils import load_json_from_minio_to_mongodb
+
 
 topics = Coindesk.topics
 
@@ -150,11 +152,12 @@ def incremental_crawl_articles(topic, max_news:int = 500):
                         articles_data = get_detail_article(
                             articles=articles_data
                         )
-                        object_key = f'web_crawler/coindesk/{topic}/coindesk_{topic}_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
+                        object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                         upload_json_to_minio(
                             json_data=articles_data, object_key=object_key
                         )
                         complete = True
+                        load_json_from_minio_to_mongodb(minio_client, object_key) 
                         break
 
                     title = title_element.text

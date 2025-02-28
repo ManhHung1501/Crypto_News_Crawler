@@ -5,6 +5,8 @@ from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
 from crawler_utils.common_utils import generate_url_hash, get_last_crawled, get_last_initial_crawled
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
 from bs4 import BeautifulSoup
+from crawler_utils.mongo_utils import load_json_from_minio_to_mongodb
+
 
 # Get total page
 def get_total_page():
@@ -198,6 +200,7 @@ def incremental_crawl_articles(max_news:int =500):
                         object_key = f'web_crawler/blockonomi/blockonomi_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
                         upload_json_to_minio(json_data=articles_data, object_key=object_key)
                         complete = True
+                        load_json_from_minio_to_mongodb(minio_client, object_key) 
                         break
                     articles_data.append({
                         "id": article_id,
