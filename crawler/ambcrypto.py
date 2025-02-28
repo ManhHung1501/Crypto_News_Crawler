@@ -7,6 +7,7 @@ from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
 from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled,get_last_crawled
 from crawler_utils.chrome_driver_utils import setup_driver, wait_for_page_load
 from crawler_config.storage_config import CRYPTO_NEWS_BUCKET
+from crawler_utils.mongo_utils import load_json_from_minio_to_mongodb
 
 # Get content article
 def get_detail_article(articles):
@@ -213,6 +214,7 @@ def incremental_crawl_articles(max_news: int = 500):
                     articles_data = get_detail_article(articles=articles_data)
                     object_key = f'web_crawler/ambcrypto/ambcrypto_incremental_crawled_at_{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
+                    load_json_from_minio_to_mongodb(minio_client, object_key)
                     complete = True
                     break
                 articles_data.append({
