@@ -1,7 +1,7 @@
 import time, random, requests
 from bs4 import BeautifulSoup
 from requests.exceptions import Timeout
-from datetime import datetime
+from datetime import datetime,timezone
 from selenium.webdriver.common.by import By
 from crawler_utils.minio_utils import upload_json_to_minio, connect_minio
 from crawler_utils.common_utils import generate_url_hash,get_last_initial_crawled, get_last_crawled
@@ -12,6 +12,7 @@ from crawler_utils.mongo_utils import load_json_from_minio_to_mongodb
 def get_detail_article(articles):
     for article in articles:
         content = "No content"
+        published_at = "1970-01-01 00:00:00"
         url = article['url']
         try:
             for _ in range(3):
@@ -31,6 +32,16 @@ def get_detail_article(articles):
                 
             soup = BeautifulSoup(response.content, "html.parser")
             
+            meta_tag = soup.find('meta', {'property': 'article:published_time'})
+            if meta_tag:
+                dt = datetime.strptime(meta_tag['content'], "%Y-%m-%dT%H:%M:%S%z")
+
+                # Convert to UTC
+                dt_utc = dt.astimezone(timezone.utc)
+
+                # Format as 'yyyy-mm-dd hh:mm:ss' in UTC
+                published_at = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
+
             article_card = soup.find("div", class_="entry-content")
             if article_card:
                 content = ' '.join(article_card.stripped_strings)
@@ -39,8 +50,11 @@ def get_detail_article(articles):
             print(f'Error in get content for {url}: ', e)
         if content == "No content":
             print(f"Failed to get content of url: {url}")
+        if published_at == "1970-01-01 00:00:00":
+            print(f'Failed to get publish date for {url}')
       
         article['content'] = content
+        article['published_at']  = published_at
     return articles
 
 def full_crawl_articles():
@@ -94,13 +108,11 @@ def full_crawl_articles():
                     not_crawled = True
                     continue
                 if not_crawled:
-                    date_str = article.find_element(By.CSS_SELECTOR, "li.date").text.strip()
                     # Add the article data to the list
                     articles_data.append({
                         "id": article_id,
                         "title": title_element.text.strip(),
                         "url": article_url,
-                        "published_at": datetime.strptime(date_str, "%B %d, %Y").strftime("%Y-%m-%d %H:%M:%S"),
                         "source": "nftevening.com"
                     })
                 if len(articles_data) == batch_size:
@@ -186,13 +198,12 @@ def incremental_crawl_articles(max_news:int=500):
                     complete = True
                     load_json_from_minio_to_mongodb(minio_client, object_key) 
                     break
-                date_str = article.find_element(By.CSS_SELECTOR, "li.date").text.strip()
+
                 # Add the article data to the list
                 articles_data.append({
                     "id": article_id,
                     "title": title_element.text.strip(),
                     "url": article_url,
-                    "published_at": datetime.strptime(date_str, "%B %d, %Y").strftime("%Y-%m-%d %H:%M:%S"),
                     "source": "nftevening.com"
                 })
                 crawled_id.add(article_id)
