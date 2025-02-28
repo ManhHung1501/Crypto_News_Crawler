@@ -10,29 +10,30 @@ def connect_mongodb():
 def load_json_from_minio_to_mongodb(
     minio_client, object_name
 ):
+    try:
+        # Connect to MongoDB
+        mongo_client = MongoClient(MONGODB_URL)
+        collection = mongo_client[MONGO_DB][MONGO_COLLECTION]
 
-    # Connect to MongoDB
-    mongo_client = connect_mongodb()
-    collection = mongo_client[MONGO_DB][MONGO_COLLECTION]
-
-    # Fetch JSON file from MinIO
-    response = minio_client.get_object(CRYPTO_NEWS_BUCKET, object_name)
-    json_data = json.load(BytesIO(response.read()))  # Convert response to JSON
-    
-    # Ensure the data is a list
-    if not isinstance(json_data, list):
-        raise ValueError("JSON file should contain a list of documents")
-    for row in json_data:
-        try:
-            if row['published_at'] == "1970-01-01 00:00:00":
+        # Fetch JSON file from MinIO
+        response = minio_client.get_object(CRYPTO_NEWS_BUCKET, object_name)
+        json_data = json.load(BytesIO(response.read()))  # Convert response to JSON
+        
+        # Ensure the data is a list
+        if not isinstance(json_data, list):
+            raise ValueError("JSON file should contain a list of documents")
+        for row in json_data:
+            try:
+                if row['published_at'] == "1970-01-01 00:00:00":
+                    row['published_at'] = None
+                else:
+                    row['published_at'] = int(datetime.strptime(row['published_at'], "%Y-%m-%d %H:%M:%S").timestamp())
+            except Exception as e:
                 row['published_at'] = None
-            else:
-                row['published_at'] = int(datetime.strptime(row['published_at'], "%Y-%m-%d %H:%M:%S").timestamp())
-        except Exception as e:
-            row['published_at'] = None
-    # Insert JSON data into MongoDB
-    result = collection.insert_many(json_data)
-    
-    print(f"Inserted {len(result.inserted_ids)} documents into MongoDB.")
-
+        # Insert JSON data into MongoDB
+        result = collection.insert_many(json_data)
+        
+        print(f"Inserted {len(result.inserted_ids)} documents into MongoDB.")
+    except Exception as e:
+        print(f"Migrate data from MinIO to Mongo Failed: {e}")
     

@@ -3,9 +3,9 @@ from crawler_utils.minio_utils import connect_minio
 from crawler_utils.mongo_utils import connect_mongodb
 from io import BytesIO
 import json 
+from datetime import datetime
 
-
-def load_json_from_minio_to_mongodb(
+def migrate_all_json(
     bucket_name, prefix,
      mongo_db, mongo_collection
 ):
@@ -67,7 +67,7 @@ def load_json_from_minio_to_mongodb(
 
 # Example usage
 if __name__ == "__main__":
-    load_json_from_minio_to_mongodb(
+    migrate_all_json(
         bucket_name="crypto-news",
         prefix="web_crawler/",
         mongo_db="graphscope",
