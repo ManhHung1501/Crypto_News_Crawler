@@ -247,8 +247,8 @@ def incremental_crawl_articles(max_news=500):
                     articles_data = get_detail_article(articles=articles_data)
                     object_key = f'{STATE_FILE}{int(datetime.now().timestamp())}.json'
                     upload_json_to_minio(json_data=articles_data, object_key=object_key)
-                    load_json_from_minio_to_mongodb(minio_client, object_key)
                     complete = True
+                    load_json_from_minio_to_mongodb(minio_client, object_key)
                     break
 
                 # Add the article data to the list
